@@ -10,6 +10,7 @@ export default function Home() {
   const [voice, setVoice] = useState(true);
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [serviceStatus, setServiceStatus] = useState<"checking" | "ready" | "error">("checking");
   useEffect(() => {
     try {
@@ -44,11 +45,27 @@ export default function Home() {
   async function send(e: FormEvent) {
     e.preventDefault(); if (!text.trim() || loading) return;
     const message = text.trim(); setText(""); setLoading(true);
+    const nextHistory = [...history, { role: "user" as const, content: message }].slice(-20);
+    setHistory(nextHistory);
     try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: message }] }) });
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory }) });
       const data = await res.json(); const answer = data.reply || data.error || "Não consegui responder.";
       setReply(answer);
-      if (voice && "speechSynthesis" in window) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(answer); u.lang = "pt-BR"; window.speechSynthesis.speak(u); }
+      setHistory([...nextHistory, { role: "assistant", content: answer }].slice(-20));
+      if (voice) {
+        try {
+          window.speechSynthesis?.cancel();
+          audioRef.current?.pause();
+          const speech = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: answer }) });
+          if (!speech.ok) throw new Error("TTS indisponível");
+          const audioUrl = URL.createObjectURL(await speech.blob());
+          const audio = new Audio(audioUrl); audioRef.current = audio;
+          audio.onended = () => URL.revokeObjectURL(audioUrl);
+          await audio.play();
+        } catch {
+          if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(answer); u.lang = "pt-BR"; window.speechSynthesis.speak(u); }
+        }
+      }
     } catch { setReply("Não consegui acessar o servidor. Tente novamente."); } finally { setLoading(false); }
   }
   return <main className="shell">
@@ -59,7 +76,7 @@ export default function Home() {
     <section className="chat"><header><AudioLines/><div><b>Converse com o ATLAS</b><small>ENAT, conhecimento geral, planejamento e análise.</small></div><span>● ONLINE</span></header><div className="conversation" aria-live="polite">
       {history.length === 0 ? <div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS <small>ASSISTENTE</small></b><p>{reply}</p></div></div> : history.map((item, index) => <div className="answer" key={index}><div className="botIcon">{item.role === "assistant" ? <Bot/> : <span>V</span>}</div><div><b>{item.role === "assistant" ? "ATLAS" : "VOCÊ"} <small>{item.role === "assistant" ? "ASSISTENTE" : "MENSAGEM"}</small></b><p>{item.content}</p></div></div>)}
       {loading&&<div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS</b><p>Processando…</p></div></div>}
-      </div><form onSubmit={send}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Pergunte sobre ENAT, HSI, NEXUS 12 ou qualquer outro assunto…" rows={2}/><div className="formFoot"><button type="button" className="voiceButton" onClick={toggleMic}>{listening?<MicOff size={16}/>:<Mic size={16}/>} {listening?"Ouvindo…":"Falar mensagem"}</button><button type="button" className="voiceButton" onClick={()=>{setVoice(!voice);if(voice)window.speechSynthesis?.cancel();}}><AudioLines size={15}/> Resposta {voice?"falada":"silenciosa"}</button><button className="send" disabled={loading||!text.trim()}><Send size={16}/> Enviar</button></div></form></section>
+      </div><form onSubmit={send}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Pergunte sobre ENAT, HSI, NEXUS 12 ou qualquer outro assunto…" rows={2}/><div className="formFoot"><button type="button" className="voiceButton" onClick={toggleMic}>{listening?<MicOff size={16}/>:<Mic size={16}/>} {listening?"Ouvindo…":"Falar mensagem"}</button><button type="button" className="voiceButton" onClick={()=>{setVoice(!voice);if(voice){window.speechSynthesis?.cancel();audioRef.current?.pause();}}}><AudioLines size={15}/> Resposta {voice?"falada":"silenciosa"}</button><button className="send" disabled={loading||!text.trim()}><Send size={16}/> Enviar</button></div></form></section>
     <footer>ATLAS SYSTEMS / BUILD 0.2.0 <span>BASE ENAT + CONHECIMENTO GERAL / AUTONOMIA CONTROLADA</span></footer></div></section>
   </main>;
 }
