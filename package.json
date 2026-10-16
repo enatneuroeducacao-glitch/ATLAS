@@ -23,5 +23,9 @@
     "eslint-config-next": "^15.2.4",
     "typescript": "^5.8.2",
     "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "braces": "^3.0.3",
+    "postcss": "^8.5.23"
   }
 }
