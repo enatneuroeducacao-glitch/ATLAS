@@ -51,7 +51,7 @@ export default function Home() {
       const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory }) });
       const data = await res.json(); const answer = data.reply || data.error || "Não consegui responder.";
       setReply(answer);
-      setHistory([...nextHistory, { role: "assistant", content: answer }].slice(-20));
+      setHistory([...nextHistory, { role: "assistant" as const, content: String(answer) }].slice(-20));
       if (voice) {
         try {
           window.speechSynthesis?.cancel();
