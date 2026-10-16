@@ -7,9 +7,14 @@ const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 15;
 function allowRequest(request: Request) {
   const now = Date.now();
+  // Expire old buckets and cap memory use; this is a per-instance fallback limiter.
+  for (const [key, value] of rateBuckets) {
+    if (now >= value.resetAt) rateBuckets.delete(key);
+  }
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const bucket = rateBuckets.get(forwarded);
   if (!bucket || now >= bucket.resetAt) {
+    if (!rateBuckets.has(forwarded) && rateBuckets.size >= 5000) return false;
     rateBuckets.set(forwarded, { count: 1, resetAt: now + WINDOW_MS });
     return true;
   }
