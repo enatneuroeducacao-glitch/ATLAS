@@ -30,7 +30,6 @@ export async function POST(request: Request) {
       ? [configuredModel, "gemini-3.6-flash"]
       : [configuredModel, "gemini-3.8-flash", "gemini-3.6-flash"].filter((model, index, list) => list.indexOf(model) === index);
     let response: Response | undefined;
-    let lastProviderStatus = 0;
     for (const model of modelsToTry) {
       try {
         response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
@@ -44,7 +43,6 @@ export async function POST(request: Request) {
           signal: AbortSignal.timeout(25000)
         });
         if (response.ok) break;
-        lastProviderStatus = response.status;
         console.error("ATLAS Gemini provider error:", model, response.status);
         if (![404, 429, 500, 502, 503, 504].includes(response.status)) break;
       } catch (error) {
