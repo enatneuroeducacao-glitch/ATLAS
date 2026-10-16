@@ -23,31 +23,36 @@ export async function POST(request: Request) {
     const body = await request.json() as { messages?: Msg[] };
     const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
     if (!messages.length || messages.some(m => !m || !["user","assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 8000)) return NextResponse.json({ error: "Mensagens inválidas." }, { status: 400 });
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) return NextResponse.json({ reply: "Estou funcionando em modo inicial. A base de conhecimento do ENAT já está incorporada ao projeto, mas respostas inteligentes exigem configurar OPENAI_API_KEY no servidor. O painel e a interface de voz podem ser testados sem essa chave." });
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4.1-mini", instructions: ATLAS_INSTRUCTIONS, input: messages.map(m => ({ role: m.role, content: m.content })) }),
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-2.5-flash"}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: ATLAS_INSTRUCTIONS }] },
+        contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      }),
       signal: AbortSignal.timeout(45000)
     });
     if (!response.ok) {
       let providerCode = "";
       let providerMessage = "";
       try {
-        const providerError = await response.json() as { error?: { code?: string; type?: string; message?: string } };
-        providerCode = providerError.error?.code || providerError.error?.type || "";
+        const providerError = await response.json() as { error?: { code?: number; status?: string; message?: string } };
+        providerCode = providerError.error?.status || String(providerError.error?.code || "");
         providerMessage = providerError.error?.message || "";
       } catch {}
-      console.error("ATLAS AI provider error:", response.status, providerCode);
-      if (response.status === 401) return NextResponse.json({ error: "A chave da OpenAI foi recusada. Confira OPENAI_API_KEY no Render." }, { status: 502 });
-      if (response.status === 429 && (providerCode === "insufficient_quota" || /quota|billing|credits/i.test(providerMessage))) {
-        return NextResponse.json({ error: "A chave foi reconhecida, mas a conta da API OpenAI está sem cota/créditos disponíveis ou precisa de configuração de cobrança. Confira Billing e Usage na plataforma OpenAI; a assinatura do ChatGPT não inclui créditos da API." }, { status: 402 });
-      }
-      if (response.status === 429) return NextResponse.json({ error: "A API OpenAI recebeu solicitações demais no momento. Aguarde um minuto e tente novamente." }, { status: 429 });
-      if (response.status === 404) return NextResponse.json({ error: "O modelo configurado não foi encontrado ou não está disponível para esta chave. Confira OPENAI_MODEL no Render." }, { status: 502 });
-      return NextResponse.json({ error: "O serviço da OpenAI não conseguiu processar a solicitação. Confira a configuração da API e tente novamente." }, { status: 502 });
+      console.error("ATLAS Gemini provider error:", response.status, providerCode);
+      if (response.status === 400 || response.status === 403) return NextResponse.json({ error: "O Google Gemini recusou a solicitação. Confira se GEMINI_API_KEY é válida e se a API Gemini está habilitada no projeto Google." }, { status: 502 });
+      if (response.status === 401) return NextResponse.json({ error: "A chave GEMINI_API_KEY foi recusada. Confira a variável no Render." }, { status: 502 });
+      if (response.status === 429) return NextResponse.json({ error: "O Google Gemini atingiu o limite de uso ou de cota gratuita. Confira os limites do projeto no Google AI Studio e tente novamente mais tarde." }, { status: 429 });
+      if (response.status === 404) return NextResponse.json({ error: "O modelo Gemini configurado não está disponível. Confira GEMINI_MODEL no Render." }, { status: 502 });
+      return NextResponse.json({ error: "O serviço Google Gemini não conseguiu processar a solicitação. Confira a configuração da API e tente novamente." }, { status: 502 });
     }
-    const data = await response.json() as { output_text?: string };
-    return NextResponse.json({ reply: data.output_text || "Não consegui gerar uma resposta." });
+    const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
+    const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
+    if (!reply) return NextResponse.json({ error: data.promptFeedback?.blockReason ? "O Google Gemini bloqueou essa solicitação por suas regras de segurança. Reformule a mensagem." : "O Google Gemini não retornou uma resposta. Tente novamente." }, { status: 502 });
+    return NextResponse.json({ reply });
   } catch (error) { console.error("ATLAS chat error:", error); return NextResponse.json({ error: "Falha ao processar a mensagem. Tente novamente." }, { status: 500 }); }
 }
