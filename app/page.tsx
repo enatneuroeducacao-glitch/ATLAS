@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { AudioLines, Bot, Mic, Send, ShieldCheck, Activity, CheckCircle2 } from "lucide-react";
 
 export default function Home() {
@@ -7,7 +7,7 @@ export default function Home() {
   const [reply, setReply] = useState("Olá! Sou o ATLAS. Meu painel está ativo. Configure a chave da IA no servidor para habilitar respostas inteligentes.");
   const [loading, setLoading] = useState(false);
   const [voice, setVoice] = useState(true);
-  async function send(e: React.FormEvent) {
+  async function send(e: FormEvent) {
     e.preventDefault(); if (!text.trim() || loading) return;
     const message = text.trim(); setText(""); setLoading(true);
     try {
