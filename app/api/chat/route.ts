@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     if (!key) return NextResponse.json({ reply: "Estou funcionando em modo inicial. Configure OPENAI_API_KEY nas variáveis do servidor para ativar o motor de IA. O painel e a interface de voz podem ser testados sem essa chave." });
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4.1-mini", instructions: "Você é ATLAS, assistente pessoal em português brasileiro. Seja objetivo e seguro. Não alegue ter executado ações externas sem confirmação verificável. Para ações críticas, explique riscos e peça autorização específica. Nunca solicite nem revele segredos.", input: messages.map(m => ({ role: m.role, content: [{ type: "input_text", text: m.content }] })) }),
+      body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4.1-mini", instructions: "Você é ATLAS, assistente pessoal em português brasileiro. Seja objetivo e seguro. Não alegue ter executado ações externas sem confirmação verificável. Para ações críticas, explique riscos e peça autorização específica. Nunca solicite nem revele segredos.", input: messages.map(m => ({ role: m.role, content: m.content })) }),
       signal: AbortSignal.timeout(45000)
     });
     if (!response.ok) { console.error("ATLAS AI provider error:", response.status); return NextResponse.json({ error: "O serviço de IA falhou. Verifique a chave e o modelo configurados no servidor." }, { status: 502 }); }
