@@ -45,7 +45,7 @@ export default function Home() {
   async function send(e: FormEvent) {
     e.preventDefault(); if (!text.trim() || loading) return;
     const message = text.trim(); setText(""); setLoading(true);
-    const nextHistory = [...history, { role: "user" as const, content: message }].slice(-20);
+    const nextHistory: { role: "user" | "assistant"; content: string }[] = [...history, { role: "user", content: message }].slice(-20);
     setHistory(nextHistory);
     try {
       const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory }) });
