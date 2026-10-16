@@ -30,7 +30,23 @@ export async function POST(request: Request) {
       body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4.1-mini", instructions: ATLAS_INSTRUCTIONS, input: messages.map(m => ({ role: m.role, content: m.content })) }),
       signal: AbortSignal.timeout(45000)
     });
-    if (!response.ok) { console.error("ATLAS AI provider error:", response.status); return NextResponse.json({ error: "O serviço de IA falhou. Verifique a chave e o modelo configurados no servidor." }, { status: 502 }); }
+    if (!response.ok) {
+      let providerCode = "";
+      let providerMessage = "";
+      try {
+        const providerError = await response.json() as { error?: { code?: string; type?: string; message?: string } };
+        providerCode = providerError.error?.code || providerError.error?.type || "";
+        providerMessage = providerError.error?.message || "";
+      } catch {}
+      console.error("ATLAS AI provider error:", response.status, providerCode);
+      if (response.status === 401) return NextResponse.json({ error: "A chave da OpenAI foi recusada. Confira OPENAI_API_KEY no Render." }, { status: 502 });
+      if (response.status === 429 && (providerCode === "insufficient_quota" || /quota|billing|credits/i.test(providerMessage))) {
+        return NextResponse.json({ error: "A chave foi reconhecida, mas a conta da API OpenAI está sem cota/créditos disponíveis ou precisa de configuração de cobrança. Confira Billing e Usage na plataforma OpenAI; a assinatura do ChatGPT não inclui créditos da API." }, { status: 402 });
+      }
+      if (response.status === 429) return NextResponse.json({ error: "A API OpenAI recebeu solicitações demais no momento. Aguarde um minuto e tente novamente." }, { status: 429 });
+      if (response.status === 404) return NextResponse.json({ error: "O modelo configurado não foi encontrado ou não está disponível para esta chave. Confira OPENAI_MODEL no Render." }, { status: 502 });
+      return NextResponse.json({ error: "O serviço da OpenAI não conseguiu processar a solicitação. Confira a configuração da API e tente novamente." }, { status: 502 });
+    }
     const data = await response.json() as { output_text?: string };
     return NextResponse.json({ reply: data.output_text || "Não consegui gerar uma resposta." });
   } catch (error) { console.error("ATLAS chat error:", error); return NextResponse.json({ error: "Falha ao processar a mensagem. Tente novamente." }, { status: 500 }); }
