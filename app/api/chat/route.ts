@@ -2,6 +2,21 @@ import { NextResponse } from "next/server";
 import { ENAT_KNOWLEDGE } from "@/lib/enat-knowledge";
 export const runtime = "nodejs";
 type Msg = { role: "user" | "assistant"; content: string };
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+const WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 15;
+function allowRequest(request: Request) {
+  const now = Date.now();
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const bucket = rateBuckets.get(forwarded);
+  if (!bucket || now >= bucket.resetAt) {
+    rateBuckets.set(forwarded, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= MAX_REQUESTS_PER_WINDOW) return false;
+  bucket.count += 1;
+  return true;
+}
 const ATLAS_INSTRUCTIONS = `Você é ATLAS, assistente pessoal em português brasileiro, objetivo, prático e seguro. Ajude o usuário com conhecimento geral e use a base ENAT abaixo quando pertinente. Não alegue ter executado ações externas sem confirmação verificável. Para ações críticas, explique riscos e peça autorização específica. Nunca solicite nem revele segredos. Diferencie propostas, estimativas, fatos verificados e hipóteses. Quando informações atuais sobre legislação, ciência, serviços ou sistemas forem necessárias e não estiverem disponíveis no contexto, declare a limitação e peça/verifique fontes antes de afirmar. Proteja dados pessoais.\n\nBASE DE CONHECIMENTO ENAT:\n${ENAT_KNOWLEDGE}`;
 export async function POST(request: Request) {
   try {
