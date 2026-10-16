@@ -25,30 +25,46 @@ export async function POST(request: Request) {
     if (!messages.length || messages.some(m => !m || !["user","assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 8000)) return NextResponse.json({ error: "Mensagens inválidas." }, { status: 400 });
     const key = process.env.GEMINI_API_KEY;
     if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || "gemini-3.8-flash"}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: ATLAS_INSTRUCTIONS }] },
-        contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-      }),
-      signal: AbortSignal.timeout(45000)
-    });
+    const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const modelsToTry = configuredModel === "gemini-3.8-flash"
+      ? [configuredModel, "gemini-3.6-flash"]
+      : [configuredModel, "gemini-3.8-flash", "gemini-3.6-flash"].filter((model, index, list) => list.indexOf(model) === index);
+    let response: Response | undefined;
+    let lastProviderStatus = 0;
+    for (const model of modelsToTry) {
+      try {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: ATLAS_INSTRUCTIONS }] },
+            contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+            generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: "low" } }
+          }),
+          signal: AbortSignal.timeout(25000)
+        });
+        if (response.ok) break;
+        lastProviderStatus = response.status;
+        console.error("ATLAS Gemini provider error:", model, response.status);
+        if (![404, 429, 500, 502, 503, 504].includes(response.status)) break;
+      } catch (error) {
+        console.error("ATLAS Gemini request failed:", model, error instanceof Error ? error.name : "unknown");
+        response = undefined;
+      }
+    }
+    if (!response) return NextResponse.json({ error: "O Google Gemini demorou demais para responder. Aguarde alguns segundos e tente novamente." }, { status: 504 });
     if (!response.ok) {
       let providerCode = "";
-      let providerMessage = "";
       try {
         const providerError = await response.json() as { error?: { code?: number; status?: string; message?: string } };
         providerCode = providerError.error?.status || String(providerError.error?.code || "");
-        providerMessage = providerError.error?.message || "";
       } catch {}
-      console.error("ATLAS Gemini provider error:", response.status, providerCode);
+      console.error("ATLAS Gemini final provider error:", response.status, providerCode);
       if (response.status === 400 || response.status === 403) return NextResponse.json({ error: "O Google Gemini recusou a solicitação. Confira se GEMINI_API_KEY é válida e se a API Gemini está habilitada no projeto Google." }, { status: 502 });
       if (response.status === 401) return NextResponse.json({ error: "A chave GEMINI_API_KEY foi recusada. Confira a variável no Render." }, { status: 502 });
       if (response.status === 429) return NextResponse.json({ error: "O Google Gemini atingiu o limite de uso ou de cota gratuita. Confira os limites do projeto no Google AI Studio e tente novamente mais tarde." }, { status: 429 });
-      if (response.status === 404) return NextResponse.json({ error: "O modelo Gemini não está disponível para esta chave. Confira se GEMINI_MODEL está definido com um modelo atual, como gemini-3.8-flash." }, { status: 502 });
-      return NextResponse.json({ error: "O serviço Google Gemini não conseguiu processar a solicitação. Confira a configuração da API e tente novamente." }, { status: 502 });
+      if (response.status === 404) return NextResponse.json({ error: "Nenhum dos modelos Gemini configurados está disponível para esta chave. Confira o acesso à API Gemini no Google AI Studio." }, { status: 502 });
+      return NextResponse.json({ error: "O Google Gemini está temporariamente indisponível. Tente novamente em instantes." }, { status: 502 });
     }
     const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
     const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
