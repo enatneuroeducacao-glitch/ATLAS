@@ -1,13 +1,15 @@
-import nextVitals from "eslint-config-next/core-web-vitals.js";
-import nextTypescript from "eslint-config-next/typescript.js";
+import { FlatCompat } from "@eslint/eslintrc";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const compat = new FlatCompat({ baseDirectory: __dirname });
 
 export default [
-  ...nextVitals,
-  ...nextTypescript,
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
-      // Existing UI uses browser speech APIs with vendor-specific runtime shapes.
-      // Keep lint useful while those APIs are progressively given explicit types.
+      // Gradually type browser speech APIs with vendor-specific runtime shapes.
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },
