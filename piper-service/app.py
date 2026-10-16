@@ -19,6 +19,32 @@ class SpeechRequest(BaseModel):
 def health():
     return {"status": "ok", "provider": "piper", "modelAvailable": Path(MODEL).is_file(), "authConfigured": bool(TOKEN)}
 
+@app.get("/demo.wav")
+def demo():
+    # Staging-only fixed sample; no user-supplied text and no API token exposed.
+    if os.getenv("PIPER_DEMO_ENABLED", "").lower() != "true":
+        raise HTTPException(status_code=404, detail="Not found")
+    if not Path(MODEL).is_file():
+        raise HTTPException(status_code=503, detail="Piper voice model is unavailable")
+    output_path = Path("/tmp/atlas-piper-demo.wav")
+    if not output_path.is_file():
+        try:
+            result = subprocess.run(
+                ["piper", "--model", MODEL, "--output_file", str(output_path)],
+                input="Olá! Eu sou o ATLAS. Esta é uma demonstração da voz neural em português brasileiro.",
+                text=True,
+                capture_output=True,
+                timeout=90,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=504, detail="Piper demo generation timed out")
+        if result.returncode != 0 or not output_path.is_file():
+            print("Piper demo generation failed:", result.stderr[-1000:])
+            raise HTTPException(status_code=502, detail="Piper could not generate demo audio")
+    return FileResponse(output_path, media_type="audio/wav", filename="atlas-piper-demo.wav", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
 @app.post("/v1/audio/speech")
 def speech(payload: SpeechRequest, authorization: str | None = Header(default=None)):
     if not TOKEN:
