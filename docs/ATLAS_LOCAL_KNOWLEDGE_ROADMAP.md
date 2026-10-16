@@ -47,6 +47,10 @@ Esta primeira versão pesquisa texto simples e código-fonte: Markdown, texto, J
 6. Adicionar fontes oficiais atualizáveis, com URL e data de consulta, sem atualizar silenciosamente documentos privados.
 7. Só depois da homologação avaliar qualquer publicação ou integração adicional.
 
+## Auditoria de dependências
+
+Em 16/10/2026, a auditoria do npm identifica `braces` por GHSA-vfj7-8cjw-p6xm, sem versão corrigida publicada no npm (`braces` 3.0.3 é a versão mais recente observada). Não declarar a auditoria limpa nem usar uma versão inventada. A etapa de auditoria é temporariamente não bloqueante para permitir executar testes, build e lint; antes de publicar, revisar as demais vulnerabilidades e confirmar se `braces` está presente no pacote de produção. Fontes: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm e https://www.npmjs.com/package/braces.
+
 ## Segurança e produção
 
 O endpoint não é conectado ao chat atual e não altera a rota de produção. A variável de habilitação fica desativada por padrão. A verificação de host é uma barreira adicional, não substitui autenticação se o endpoint for futuramente exposto por proxy ou túnel. Não publicar o diretório local nem a porta do Ollama na internet.
