@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, Activity, CheckCircle2 } from "lucide-react";
 
 export default function Home() {
@@ -10,6 +10,26 @@ export default function Home() {
   const [voice, setVoice] = useState(true);
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
+  const [serviceStatus, setServiceStatus] = useState<"checking" | "ready" | "error">("checking");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("atlas-conversation-v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const safe = parsed.filter((m: any) => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string").slice(-20);
+          setHistory(safe);
+          const lastAnswer = [...safe].reverse().find((m: any) => m.role === "assistant");
+          if (lastAnswer) setReply(lastAnswer.content);
+        }
+      }
+    } catch {}
+    fetch("/api/health").then(r => { if (!r.ok) throw new Error("health"); return r.json(); })
+      .then(() => setServiceStatus("ready")).catch(() => setServiceStatus("error"));
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("atlas-conversation-v1", JSON.stringify(history.slice(-20))); } catch {}
+  }, [history]);
   function toggleMic() {
     if (listening) { recRef.current?.stop(); setListening(false); return; }
     const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -33,7 +53,7 @@ export default function Home() {
   }
   return <main className="shell">
     <aside className="sidebar"><div className="brand"><span className="brandIcon"><AudioLines size={25}/></span><span><b>ATLAS</b><small>PERSONAL INTELLIGENCE</small></span></div><p className="sideLabel">WORKSPACE</p><div className="workspace"><span className="avatar">V</span><span><b>Meu espaço</b><small>Assistente pessoal</small></span></div><p className="sideLabel">MENU PRINCIPAL</p><div className="navItem"><Activity size={17}/> Visão geral</div><div className="navItem"><Bot size={17}/> Conversas</div><div className="navItem"><CheckCircle2 size={17}/> Tarefas</div><div className="sideGrow"/><div className="security"><ShieldCheck/><b>Proteção ativa</b><p>Ações externas bloqueadas nesta versão.</p><small>● POLÍTICAS BÁSICAS ATIVAS</small></div></aside>
-    <section className="main"><header className="topbar">Workspace <span>● Sistema operacional</span></header><div className="content"><div className="eyebrow">● SEU ASSISTENTE PESSOAL</div><h1>Bom dia. <span>Vamos realizar.</span></h1><p className="subtitle">Seu centro de inteligência está pronto para começar.</p>
+    <section className="main"><header className="topbar">Workspace <span>{serviceStatus === "ready" ? "● Sistema operacional" : serviceStatus === "error" ? "● Verificar conexão" : "● Verificando sistema…"}</span></header><div className="content"><div className="eyebrow">● SEU ASSISTENTE PESSOAL</div><h1>Bom dia. <span>Vamos realizar.</span></h1><p className="subtitle">Seu centro de inteligência está pronto para começar.</p>
     <section className="hero"><div><div className="eyebrow">● ATLAS CORE / ONLINE</div><h2>Inteligência em<br/><span>movimento.</span></h2><p>Uma central para pensar, organizar e executar — com você no controle.</p></div><div className="orb"><AudioLines size={55}/></div></section>
     <div className="metrics"><article><small>ESTADO DO SISTEMA</small><b>Operacional</b><p>Interface carregada</p></article><article><small>BASE DE CONHECIMENTO</small><b>ENAT integrada</b><p>Contexto carregado no assistente</p></article><article><small>SEGURANÇA</small><b>Protegido</b><p>Execução local desativada</p></article></div>
     <section className="chat"><header><AudioLines/><div><b>Converse com o ATLAS</b><small>ENAT, conhecimento geral, planejamento e análise.</small></div><span>● ONLINE</span></header><div className="conversation" aria-live="polite">
