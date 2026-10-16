@@ -19,12 +19,13 @@ function allowRequest(request: Request) {
 }
 const ATLAS_INSTRUCTIONS = `Você é ATLAS, assistente pessoal em português brasileiro, objetivo, prático e seguro. Ajude o usuário com conhecimento geral e use a base ENAT abaixo quando pertinente. Não alegue ter executado ações externas sem confirmação verificável. Para ações críticas, explique riscos e peça autorização específica. Nunca solicite nem revele segredos. Diferencie propostas, estimativas, fatos verificados e hipóteses. Quando informações atuais sobre legislação, ciência, serviços ou sistemas forem necessárias e não estiverem disponíveis no contexto, declare a limitação e peça/verifique fontes antes de afirmar. Proteja dados pessoais.\n\nBASE DE CONHECIMENTO ENAT:\n${ENAT_KNOWLEDGE}`;
 export async function POST(request: Request) {
+  if (!allowRequest(request)) return NextResponse.json({ error: "Limite de solicitações atingido. Aguarde um minuto e tente novamente." }, { status: 429 });
   try {
     const body = await request.json() as { messages?: Msg[] };
     const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
     if (!messages.length || messages.some(m => !m || !["user","assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 8000)) return NextResponse.json({ error: "Mensagens inválidas." }, { status: 400 });
     const key = process.env.GEMINI_API_KEY;
-    if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
+    if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar respostas inteligentes do ATLAS." }, { status: 503 });
     const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
     const modelsToTry = configuredModel === "gemini-3.8-flash"
       ? [configuredModel, "gemini-3.6-flash"]
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
         response = undefined;
       }
     }
-    if (!response) return NextResponse.json({ error: "O Google Gemini demorou demais para responder. Aguarde alguns segundos e tente novamente." }, { status: 504 });
+    if (!response) return NextResponse.json({ error: "O provedor de IA demorou demais para responder. Aguarde alguns segundos e tente novamente." }, { status: 504 });
     if (!response.ok) {
       let providerCode = "";
       try {
@@ -58,15 +59,15 @@ export async function POST(request: Request) {
         providerCode = providerError.error?.status || String(providerError.error?.code || "");
       } catch {}
       console.error("ATLAS Gemini final provider error:", response.status, providerCode);
-      if (response.status === 400 || response.status === 403) return NextResponse.json({ error: "O Google Gemini recusou a solicitação. Confira se GEMINI_API_KEY é válida e se a API Gemini está habilitada no projeto Google." }, { status: 502 });
-      if (response.status === 401) return NextResponse.json({ error: "A chave GEMINI_API_KEY foi recusada. Confira a variável no Render." }, { status: 502 });
-      if (response.status === 429) return NextResponse.json({ error: "O Google Gemini atingiu o limite de uso ou de cota gratuita. Confira os limites do projeto no Google AI Studio e tente novamente mais tarde." }, { status: 429 });
-      if (response.status === 404) return NextResponse.json({ error: "Nenhum dos modelos Gemini configurados está disponível para esta chave. Confira o acesso à API Gemini no Google AI Studio." }, { status: 502 });
-      return NextResponse.json({ error: "O Google Gemini está temporariamente indisponível. Tente novamente em instantes." }, { status: 502 });
+      if (response.status === 400 || response.status === 403) return NextResponse.json({ error: "O provedor de IA recusou a solicitação. Confira a chave e se a API está habilitada." }, { status: 502 });
+      if (response.status === 401) return NextResponse.json({ error: "A chave da API foi recusada. Confira a variável de ambiente no Render." }, { status: 502 });
+      if (response.status === 429) return NextResponse.json({ error: "O provedor de IA atingiu o limite de uso ou cota. Confira os limites do projeto e tente novamente mais tarde." }, { status: 429 });
+      if (response.status === 404) return NextResponse.json({ error: "Nenhum dos modelos configurados está disponível para esta chave. Confira o acesso à API." }, { status: 502 });
+      return NextResponse.json({ error: "O provedor de IA está temporariamente indisponível. Tente novamente em instantes." }, { status: 502 });
     }
     const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>; promptFeedback?: { blockReason?: string } };
     const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
-    if (!reply) return NextResponse.json({ error: data.promptFeedback?.blockReason ? "O Google Gemini bloqueou essa solicitação por suas regras de segurança. Reformule a mensagem." : "O Google Gemini não retornou uma resposta. Tente novamente." }, { status: 502 });
+    if (!reply) return NextResponse.json({ error: data.promptFeedback?.blockReason ? "O provedor de IA bloqueou essa solicitação por suas regras de segurança. Reformule a mensagem." : "O provedor de IA não retornou uma resposta. Tente novamente." }, { status: 502 });
     return NextResponse.json({ reply });
   } catch (error) { console.error("ATLAS chat error:", error); return NextResponse.json({ error: "Falha ao processar a mensagem. Tente novamente." }, { status: 500 }); }
 }
