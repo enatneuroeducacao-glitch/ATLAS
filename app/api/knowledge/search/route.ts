@@ -10,7 +10,8 @@ function isLocalRequest(request: Request): boolean {
 }
 
 export async function POST(request: Request) {
-  if (process.env.ATLAS_LOCAL_KNOWLEDGE_ENABLED !== "true" || !isLocalRequest(request)) {
+  // This endpoint reads files from the host; never enable it in a deployed environment.
+  if (process.env.NODE_ENV === "production" || process.env.ATLAS_LOCAL_KNOWLEDGE_ENABLED !== "true" || !isLocalRequest(request)) {
     return NextResponse.json({ error: "Pesquisa local desativada ou acessada fora do computador local." }, { status: 403 });
   }
   try {
