@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="ATLAS Piper TTS", docs_url=None, redoc_url=None)
-MODEL = os.getenv("PIPER_MODEL", "/models/pt_BR-faber-medium.onnx")
+MODEL = os.getenv("PIPER_MODEL", "/models/dii_pt-BR.onnx")
 TOKEN = os.getenv("PIPER_API_TOKEN", "")
 
 class SpeechRequest(BaseModel):
