@@ -51,8 +51,20 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(45000)
     });
     if (!response.ok) {
-      console.error("ATLAS TTS provider error:", response.status);
-      return NextResponse.json({ error: "Não foi possível gerar a voz neural. Verifique o acesso à API de áudio." }, { status: 502 });
+      let providerCode = "";
+      let providerMessage = "";
+      try {
+        const providerError = await response.json() as { error?: { code?: string; type?: string; message?: string } };
+        providerCode = providerError.error?.code || providerError.error?.type || "";
+        providerMessage = providerError.error?.message || "";
+      } catch {}
+      console.error("ATLAS TTS provider error:", response.status, providerCode);
+      if (response.status === 401) return NextResponse.json({ error: "A chave da OpenAI foi recusada. Confira OPENAI_API_KEY no Render." }, { status: 502 });
+      if (response.status === 429 && (providerCode === "insufficient_quota" || /quota|billing|credits/i.test(providerMessage))) {
+        return NextResponse.json({ error: "A voz neural está indisponível porque a conta da API OpenAI está sem cota/créditos ou precisa de configuração de cobrança. Confira Billing e Usage na plataforma OpenAI." }, { status: 402 });
+      }
+      if (response.status === 429) return NextResponse.json({ error: "Limite temporário da API de áudio atingido. Aguarde um minuto e tente novamente." }, { status: 429 });
+      return NextResponse.json({ error: "Não foi possível gerar a voz neural. Confira o modelo e o acesso à API de áudio." }, { status: 502 });
     }
     return new Response(await response.arrayBuffer(), {
       headers: {
