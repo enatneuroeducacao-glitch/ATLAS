@@ -35,6 +35,36 @@ export async function POST(request: Request) {
     if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 4096) {
       return NextResponse.json({ error: "Texto inválido. O limite é de 4.096 caracteres." }, { status: 400 });
     }
+    const piperUrl = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
+    if (piperUrl) {
+      const piperToken = process.env.PIPER_API_TOKEN;
+      if (!piperToken) return NextResponse.json({ error: "Piper TTS está selecionado, mas PIPER_API_TOKEN não foi configurado no servidor." }, { status: 503 });
+      let piperResponse: Response;
+      try {
+        piperResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${piperToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ text: body.text.trim() }),
+          signal: AbortSignal.timeout(95000)
+        });
+      } catch (error) {
+        console.error("ATLAS Piper TTS connection error:", error instanceof Error ? error.name : "unknown");
+        return NextResponse.json({ error: "O serviço gratuito de voz Piper está indisponível. Tente novamente em instantes." }, { status: 502 });
+      }
+      if (!piperResponse.ok) {
+        console.error("ATLAS Piper TTS provider error:", piperResponse.status);
+        if (piperResponse.status === 401 || piperResponse.status === 403) return NextResponse.json({ error: "A autenticação do serviço Piper falhou. Confira PIPER_API_TOKEN nos dois serviços." }, { status: 502 });
+        if (piperResponse.status === 504) return NextResponse.json({ error: "A geração da voz Piper demorou demais. Tente um texto menor." }, { status: 504 });
+        return NextResponse.json({ error: "O Piper não conseguiu gerar o áudio. Verifique o serviço de voz." }, { status: 502 });
+      }
+      return new Response(await piperResponse.arrayBuffer(), {
+        headers: {
+          "Content-Type": "audio/wav",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff"
+        }
+      });
+    }
     const key = process.env.OPENAI_API_KEY;
     if (!key) return NextResponse.json({ error: "A chave da IA não está configurada no servidor." }, { status: 503 });
     const response = await fetch("https://api.openai.com/v1/audio/speech", {
