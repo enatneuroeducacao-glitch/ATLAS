@@ -1,4 +1,22 @@
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+
 export async function GET() {
-  return NextResponse.json({ status: "ok", app: "ATLAS", version: "0.1.0", aiConfigured: Boolean(process.env.OPENAI_API_KEY), timestamp: new Date().toISOString() });
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
+  const piperConfigured = Boolean(
+    process.env.PIPER_TTS_URL?.trim() &&
+    process.env.PIPER_API_TOKEN?.trim()
+  );
+
+  return NextResponse.json({
+    status: "ok",
+    app: "ATLAS",
+    version: "0.1.0",
+    aiProvider: "gemini",
+    aiConfigured: geminiConfigured,
+    voiceProvider: "piper",
+    voiceConfigured: piperConfigured,
+    timestamp: new Date().toISOString()
+  });
 }

@@ -30,51 +30,109 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Origem inválida." }, { status: 403 });
       }
     }
-    if (!allowRequest(request)) return NextResponse.json({ error: "Muitas solicitações de voz. Aguarde um minuto." }, { status: 429 });
+
+    if (!allowRequest(request)) {
+      return NextResponse.json({ error: "Muitas solicitações de voz. Aguarde um minuto." }, { status: 429 });
+    }
+
     const body = await request.json() as { text?: unknown };
     if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 4096) {
       return NextResponse.json({ error: "Texto inválido. O limite é de 4.096 caracteres." }, { status: 400 });
     }
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) return NextResponse.json({ error: "A chave da IA não está configurada no servidor." }, { status: 503 });
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
-        voice: process.env.OPENAI_TTS_VOICE || "marin",
-        input: body.text.trim(),
-        instructions: "Fale em português brasileiro natural, com voz acolhedora, fluida e profissional. Use ritmo moderado, entonação expressiva e pausas naturais. Evite soar robótico. Pronuncie siglas e termos técnicos claramente.",
-        response_format: "mp3",
-        speed: 1.0
-      }),
-      signal: AbortSignal.timeout(45000)
-    });
-    if (!response.ok) {
-      let providerCode = "";
-      let providerMessage = "";
-      try {
-        const providerError = await response.json() as { error?: { code?: string; type?: string; message?: string } };
-        providerCode = providerError.error?.code || providerError.error?.type || "";
-        providerMessage = providerError.error?.message || "";
-      } catch {}
-      console.error("ATLAS TTS provider error:", response.status, providerCode);
-      if (response.status === 401) return NextResponse.json({ error: "A chave da OpenAI foi recusada. Confira OPENAI_API_KEY no Render." }, { status: 502 });
-      if (response.status === 429 && (providerCode === "insufficient_quota" || /quota|billing|credits/i.test(providerMessage))) {
-        return NextResponse.json({ error: "A voz neural está indisponível porque a conta da API OpenAI está sem cota/créditos ou precisa de configuração de cobrança. Confira Billing e Usage na plataforma OpenAI." }, { status: 402 });
-      }
-      if (response.status === 429) return NextResponse.json({ error: "Limite temporário da API de áudio atingido. Aguarde um minuto e tente novamente." }, { status: 429 });
-      return NextResponse.json({ error: "Não foi possível gerar a voz neural. Confira o modelo e o acesso à API de áudio." }, { status: 502 });
+
+    const piperUrl = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
+    const piperToken = process.env.PIPER_API_TOKEN?.trim();
+    if (!piperUrl || !piperToken) {
+      console.error("ATLAS Piper TTS is not configured:", JSON.stringify({
+        urlConfigured: Boolean(piperUrl),
+        tokenConfigured: Boolean(piperToken)
+      }));
+      return NextResponse.json({
+        error: "A voz Piper não está configurada corretamente na homologação. Confira PIPER_TTS_URL e PIPER_API_TOKEN no Render."
+      }, { status: 503 });
     }
-    return new Response(await response.arrayBuffer(), {
+
+    let piperResponse: Response;
+    try {
+      piperResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${piperToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text: body.text.trim() }),
+        signal: AbortSignal.timeout(100000)
+      });
+    } catch (error) {
+      console.error("ATLAS Piper TTS connection error:", error instanceof Error ? error.name : "unknown");
+      return NextResponse.json({
+        error: "O serviço Piper não respondeu a tempo. Tente um texto menor; se persistir, verifique o serviço de voz no Render."
+      }, { status: 504 });
+    }
+
+    // Render free instances may sleep and return a gateway error while waking.
+    // Retry transient statuses with increasing delays; never retry authentication failures.
+    for (const delayMs of [1800, 3500]) {
+      if (![502, 503, 504].includes(piperResponse.status)) break;
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      try {
+        const retryResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${piperToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ text: body.text.trim() }),
+          signal: AbortSignal.timeout(100000)
+        });
+        piperResponse = retryResponse;
+        if (piperResponse.ok || ![502, 503, 504].includes(piperResponse.status)) break;
+        console.error("ATLAS Piper transient retry failed:", piperResponse.status);
+      } catch (error) {
+        console.error("ATLAS Piper transient retry connection error:", error instanceof Error ? error.name : "unknown");
+      }
+    }
+
+    if (!piperResponse.ok) {
+      // Keep provider diagnostics in server logs; never return raw upstream details to the browser.
+      const upstreamDetail = (await piperResponse.clone().text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 500);
+      console.error("ATLAS Piper TTS provider error:", JSON.stringify({
+        status: piperResponse.status,
+        detail: upstreamDetail || "no response body"
+      }));
+      if (piperResponse.status === 401 || piperResponse.status === 403) {
+        return NextResponse.json({
+          error: "A autenticação do Piper falhou. PIPER_API_TOKEN precisa ser idêntico nos dois serviços de homologação."
+        }, { status: 502 });
+      }
+      if (piperResponse.status === 503) {
+        return NextResponse.json({
+          error: "O Piper está sem autenticação ou o modelo de voz não está disponível. Confira /health no serviço Piper."
+        }, { status: 503 });
+      }
+      if (piperResponse.status === 504) {
+        return NextResponse.json({
+          error: "O Piper excedeu o tempo de geração. Tente uma frase menor ou aguarde o serviço terminar de iniciar."
+        }, { status: 504 });
+      }
+      return NextResponse.json({ error: "O Piper não conseguiu gerar o áudio. Verifique os logs do serviço de voz." }, { status: 502 });
+    }
+
+    const contentType = piperResponse.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().includes("audio/")) {
+      console.error("ATLAS Piper TTS returned unexpected content type:", contentType || "missing");
+      return NextResponse.json({ error: "O Piper respondeu sem um arquivo de áudio válido." }, { status: 502 });
+    }
+
+    return new Response(await piperResponse.arrayBuffer(), {
       headers: {
-        "Content-Type": "audio/mpeg",
+        "Content-Type": "audio/wav",
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff"
       }
     });
   } catch (error) {
-    console.error("ATLAS TTS error:", error);
+    console.error("ATLAS TTS error:", error instanceof Error ? error.name : "unknown");
     return NextResponse.json({ error: "Falha ao gerar áudio." }, { status: 500 });
   }
 }

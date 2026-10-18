@@ -1,82 +1,44 @@
 "use client";
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, Activity, CheckCircle2 } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, Activity, CheckCircle2, LayoutDashboard, MessageSquare, ListTodo, Plus, Search, Trash2, Check, Sparkles, RotateCcw, Volume2 } from "lucide-react";
 
+type Message={role:"user"|"assistant";content:string};
+type Task={id:string;title:string;done:boolean;createdAt:number};
+type View="overview"|"conversations"|"tasks";
+function toSpeakableText(value:string){return value
+.replace(/\r?\n+/g,". ")
+.replace(/!\[([^\]]*)\]\([^)]*\)/g,"$1")
+.replace(/\[([^\]]+)\]\([^)]*\)/g,"$1")
+.replace(/https?:\/\/\S+/g,"link omitido")
+.replace(/\*\*(.*?)\*\*/g,"$1")
+.replace(/__(.*?)__/g,"$1")
+.replace(/\*(.*?)\*/g,"$1")
+.replace(/_(.*?)_/g,"$1")
+.replace(/~~(.*?)~~/g,"$1")
+.replace(/^\s{0,3}#{1,6}\s*/gm,"")
+.replace(/^\s*[-+*]\s+/gm,"")
+.replace(/^\s*\d+[.)]\s+/gm,"")
+.replace(/`([^`]+)`/g,"$1")
+.replace(/[>*_~#\[\]{}]/g," ")
+.replace(/\s+/g," ").trim();}
 export default function Home() {
-  const [text, setText] = useState("");
-  const [reply, setReply] = useState("Olá! Sou o ATLAS. A base de conhecimento do ENAT está incorporada ao projeto. Configure a chave da IA no servidor para habilitar respostas inteligentes.");
-  const [history, setHistory] = useState<{role:"user"|"assistant";content:string}[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [voice, setVoice] = useState(true);
-  const [listening, setListening] = useState(false);
-  const recRef = useRef<any>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [serviceStatus, setServiceStatus] = useState<"checking" | "ready" | "error">("checking");
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("atlas-conversation-v1");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const safe = parsed.filter((m: any) => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string").slice(-20);
-          setHistory(safe);
-          const lastAnswer = [...safe].reverse().find((m: any) => m.role === "assistant");
-          if (lastAnswer) setReply(lastAnswer.content);
-        }
-      }
-    } catch {}
-    fetch("/api/health").then(r => { if (!r.ok) throw new Error("health"); return r.json(); })
-      .then(() => setServiceStatus("ready")).catch(() => setServiceStatus("error"));
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem("atlas-conversation-v1", JSON.stringify(history.slice(-20))); } catch {}
-  }, [history]);
-  function toggleMic() {
-    if (listening) { recRef.current?.stop(); setListening(false); return; }
-    const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechAPI) { setReply("O reconhecimento de voz não está disponível neste navegador. Tente usar o Microsoft Edge ou Google Chrome atualizado."); return; }
-    const rec = new SpeechAPI(); rec.lang = "pt-BR"; rec.interimResults = false; rec.continuous = false;
-    rec.onresult = (event: any) => { const transcript = event.results?.[0]?.[0]?.transcript; if (transcript) setText(transcript); };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => { setListening(false); setReply("Não foi possível acessar o microfone. Confira as permissões do navegador."); };
-    recRef.current = rec;
-    try { rec.start(); setListening(true); } catch { setListening(false); }
-  }
-  async function send(e: FormEvent) {
-    e.preventDefault(); if (!text.trim() || loading) return;
-    const message = text.trim(); setText(""); setLoading(true);
-    const nextHistory = [...history, { role: "user" as const, content: message }].slice(-20);
-    setHistory(nextHistory);
-    try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory }) });
-      const data = await res.json(); const answer = data.reply || data.error || "Não consegui responder.";
-      setReply(answer);
-      setHistory([...nextHistory, { role: "assistant" as const, content: String(answer) }].slice(-20));
-      if (voice) {
-        try {
-          window.speechSynthesis?.cancel();
-          audioRef.current?.pause();
-          const speech = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: answer }) });
-          if (!speech.ok) throw new Error("TTS indisponível");
-          const audioUrl = URL.createObjectURL(await speech.blob());
-          const audio = new Audio(audioUrl); audioRef.current = audio;
-          audio.onended = () => URL.revokeObjectURL(audioUrl);
-          await audio.play();
-        } catch {
-          if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(answer); u.lang = "pt-BR"; window.speechSynthesis.speak(u); }
-        }
-      }
-    } catch { setReply("Não consegui acessar o servidor. Tente novamente."); } finally { setLoading(false); }
-  }
-  return <main className="shell">
-    <aside className="sidebar"><div className="brand"><span className="brandIcon"><AudioLines size={25}/></span><span><b>ATLAS</b><small>PERSONAL INTELLIGENCE</small></span></div><p className="sideLabel">WORKSPACE</p><div className="workspace"><span className="avatar">V</span><span><b>Meu espaço</b><small>Assistente pessoal</small></span></div><p className="sideLabel">MENU PRINCIPAL</p><div className="navItem"><Activity size={17}/> Visão geral</div><div className="navItem"><Bot size={17}/> Conversas</div><div className="navItem"><CheckCircle2 size={17}/> Tarefas</div><div className="sideGrow"/><div className="security"><ShieldCheck/><b>Proteção ativa</b><p>Ações externas bloqueadas nesta versão.</p><small>● POLÍTICAS BÁSICAS ATIVAS</small></div></aside>
-    <section className="main"><header className="topbar">Workspace <span>{serviceStatus === "ready" ? "● Sistema operacional" : serviceStatus === "error" ? "● Verificar conexão" : "● Verificando sistema…"}</span></header><div className="content"><div className="eyebrow">● SEU ASSISTENTE PESSOAL</div><h1>Bom dia. <span>Vamos realizar.</span></h1><p className="subtitle">Seu centro de inteligência está pronto para começar.</p>
-    <section className="hero"><div><div className="eyebrow">● ATLAS CORE / ONLINE</div><h2>Inteligência em<br/><span>movimento.</span></h2><p>Uma central para pensar, organizar e executar — com você no controle.</p></div><div className="orb"><AudioLines size={55}/></div></section>
-    <div className="metrics"><article><small>ESTADO DO SISTEMA</small><b>Operacional</b><p>Interface carregada</p></article><article><small>BASE DE CONHECIMENTO</small><b>ENAT integrada</b><p>Contexto carregado no assistente</p></article><article><small>SEGURANÇA</small><b>Protegido</b><p>Execução local desativada</p></article></div>
-    <section className="chat"><header><AudioLines/><div><b>Converse com o ATLAS</b><small>ENAT, conhecimento geral, planejamento e análise.</small></div><span>● ONLINE</span></header><div className="conversation" aria-live="polite">
-      {history.length === 0 ? <div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS <small>ASSISTENTE</small></b><p>{reply}</p></div></div> : history.map((item, index) => <div className="answer" key={index}><div className="botIcon">{item.role === "assistant" ? <Bot/> : <span>V</span>}</div><div><b>{item.role === "assistant" ? "ATLAS" : "VOCÊ"} <small>{item.role === "assistant" ? "ASSISTENTE" : "MENSAGEM"}</small></b><p>{item.content}</p></div></div>)}
-      {loading&&<div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS</b><p>Processando…</p></div></div>}
-      </div><form onSubmit={send}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Pergunte sobre ENAT, HSI, NEXUS 12 ou qualquer outro assunto…" rows={2}/><div className="formFoot"><button type="button" className="voiceButton" onClick={toggleMic}>{listening?<MicOff size={16}/>:<Mic size={16}/>} {listening?"Ouvindo…":"Falar mensagem"}</button><button type="button" className="voiceButton" onClick={()=>{setVoice(!voice);if(voice){window.speechSynthesis?.cancel();audioRef.current?.pause();}}}><AudioLines size={15}/> Resposta {voice?"falada":"silenciosa"}</button><button className="send" disabled={loading||!text.trim()}><Send size={16}/> Enviar</button></div></form></section>
-    <footer>ATLAS SYSTEMS / BUILD 0.2.0 <span>BASE ENAT + CONHECIMENTO GERAL / AUTONOMIA CONTROLADA</span></footer></div></section>
-  </main>;
+ const [view,setView]=useState<View>("overview"),[text,setText]=useState(""),[reply,setReply]=useState("Olá! Sou o ATLAS. Posso ajudar com ENAT, HSI, NEXUS 12, planejamento e análise."),[history,setHistory]=useState<Message[]>([]),[loading,setLoading]=useState(false),[voice,setVoice]=useState(true),[listening,setListening]=useState(false),[query,setQuery]=useState(""),[taskText,setTaskText]=useState(""),[tasks,setTasks]=useState<Task[]>([]),[serviceStatus,setServiceStatus]=useState<"checking"|"ready"|"error">("checking");
+ const recRef=useRef<any>(null),audioRef=useRef<HTMLAudioElement|null>(null),conversationEndRef=useRef<HTMLDivElement|null>(null),conversationScrollRef=useRef<HTMLDivElement|null>(null);
+ useEffect(()=>{try{const h=localStorage.getItem("atlas-conversation-v1");if(h){const p=JSON.parse(h);if(Array.isArray(p)){const s=p.filter((m:any)=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string").slice(-80);setHistory(s);const a=[...s].reverse().find((m:any)=>m.role==="assistant");if(a)setReply(a.content)}}const t=localStorage.getItem("atlas-tasks-v1");if(t){const p=JSON.parse(t);if(Array.isArray(p))setTasks(p.filter((x:any)=>x&&typeof x.title==="string"))}}catch{} fetch("/api/health").then(r=>{if(!r.ok)throw Error();return r.json()}).then(data=>{if(!data.aiConfigured)throw Error("IA não configurada");setServiceStatus("ready")}).catch(()=>setServiceStatus("error"))},[]);
+ useEffect(()=>{if(view==="conversations"){const el=conversationScrollRef.current;if(el)el.scrollTop=el.scrollHeight;conversationEndRef.current?.scrollIntoView({behavior:"auto",block:"end"})}},[history,view,loading]);
+ useEffect(()=>{try{localStorage.setItem("atlas-conversation-v1",JSON.stringify(history.slice(-80)))}catch{}},[history]);
+ useEffect(()=>{try{localStorage.setItem("atlas-tasks-v1",JSON.stringify(tasks))}catch{}},[tasks]);
+ const filtered=useMemo(()=>history.filter(m=>m.content.toLowerCase().includes(query.toLowerCase())),[history,query]);
+ function toggleMic(){if(listening){recRef.current?.stop();setListening(false);return}const API=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!API){setReply("O reconhecimento de voz não está disponível neste navegador. Use o Edge ou Chrome atualizado.");return}const rec=new API();rec.lang="pt-BR";rec.interimResults=false;rec.continuous=false;rec.onresult=(e:any)=>{const v=e.results?.[0]?.[0]?.transcript;if(v)setText(v)};rec.onend=()=>setListening(false);rec.onerror=()=>{setListening(false);setReply("Não foi possível acessar o microfone. Confira as permissões do navegador.")};recRef.current=rec;try{rec.start();setListening(true)}catch{setListening(false)}}
+ async function send(e:FormEvent){e.preventDefault();if(!text.trim()||loading)return;const message=text.trim();setText("");setLoading(true);setView("conversations");const next:Message[]=[...history,{role:"user" as const,content:message}].slice(-80);setHistory(next);try{const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:next})});const data=await res.json();const answer=String(data.reply||data.error||"Não consegui responder.");setReply(answer);setHistory([...next,{role:"assistant" as const,content:answer}].slice(-80));if(voice&&res.ok){try{window.speechSynthesis?.cancel();audioRef.current?.pause();const speech=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:toSpeakableText(answer)})});if(!speech.ok)throw Error();const url=URL.createObjectURL(await speech.blob());const audio=new Audio(url);audioRef.current=audio;audio.onended=()=>URL.revokeObjectURL(url);await audio.play()}catch{setReply(answer);try{if("speechSynthesis" in window){window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(toSpeakableText(answer).slice(0,1800));utterance.lang="pt-BR";utterance.rate=1;utterance.pitch=1;const voices=window.speechSynthesis.getVoices();const ptBrVoices=voices.filter(v=>/^pt-BR$/i.test(v.lang));const maleVoice=ptBrVoices.find(v=>/\b(male|masculino|antonio|antônio|daniel|felipe|ricardo|lucas|bruno|rafael|jorge|carlos|david)\b/i.test(v.name));const ptVoice=maleVoice||ptBrVoices[0]||voices.find(v=>/^pt/i.test(v.lang));if(ptVoice)utterance.voice=ptVoice;utterance.pitch=0.95;window.speechSynthesis.speak(utterance);}}catch{ /* Mantém a resposta escrita se a voz local também falhar. */ }}}}catch{setReply("Não consegui acessar o servidor. Tente novamente.");setHistory(h=>[...h,{role:"assistant" as const,content:"Não consegui acessar o servidor. Tente novamente."}])}finally{setLoading(false)}}
+ function addTask(e:FormEvent){e.preventDefault();if(!taskText.trim())return;setTasks(t=>[{id:crypto.randomUUID(),title:taskText.trim(),done:false,createdAt:Date.now()},...t]);setTaskText("")}
+ const pending=tasks.filter(t=>!t.done).length,completed=tasks.filter(t=>t.done).length;
+ return <main className="shell"><aside className="sidebar"><div className="brand"><span className="brandIcon"><AudioLines size={25}/></span><span><b>ATLAS</b><small>PERSONAL INTELLIGENCE</small></span></div><p className="sideLabel">WORKSPACE</p><div className="workspace"><span className="avatar">V</span><span><b>Meu espaço</b><small>Assistente pessoal</small></span></div><p className="sideLabel">MENU PRINCIPAL</p><button className={`navItem ${view==="overview"?"active":""}`} onClick={()=>setView("overview")}><LayoutDashboard size={17}/> Visão geral</button><button className={`navItem ${view==="conversations"?"active":""}`} onClick={()=>setView("conversations")}><MessageSquare size={17}/> Conversas <span className="navCount">{history.length}</span></button><button className={`navItem ${view==="tasks"?"active":""}`} onClick={()=>setView("tasks")}><ListTodo size={17}/> Tarefas <span className="navCount">{pending}</span></button><div className="sideGrow"/><div className="security"><ShieldCheck/><b>Proteção ativa</b><p>Ações externas bloqueadas nesta versão.</p><small>● POLÍTICAS BÁSICAS ATIVAS</small></div></aside>
+ <section className="main"><header className="topbar"><span>Workspace <small>/ {view==="overview"?"Visão geral":view==="conversations"?"Conversas":"Tarefas"}</small></span><span className={serviceStatus==="error"?"statusWarn":"statusOk"}>● {serviceStatus==="ready"?"Sistema operacional":serviceStatus==="error"?"Verificar conexão":"Verificando sistema…"}</span></header><div className="content">
+ {view==="overview"&&<><div className="eyebrow">● SEU ASSISTENTE PESSOAL</div><h1>Bom dia. <span>Vamos realizar.</span></h1><p className="subtitle">Seu centro de inteligência está pronto para começar.</p><section className="hero"><div><div className="eyebrow">● ATLAS CORE / ONLINE</div><h2>Inteligência em<br/><span>movimento.</span></h2><p>Uma central para pensar, organizar e executar — com você no controle.</p><button className="primaryAction" onClick={()=>setView("conversations")}><Sparkles size={16}/> Iniciar conversa <span>↗</span></button></div><div className="orb"><AudioLines size={55}/></div></section><div className="metrics"><article><small>ESTADO DO SISTEMA</small><b>{serviceStatus==="error"?"Verificar conexão":"Operacional"}</b><p>{serviceStatus==="ready"?"Serviços de aplicação acessíveis":"Status de conexão"}</p></article><article><small>CONVERSAS SALVAS</small><b>{history.length}</b><p>Mensagens guardadas neste navegador</p></article><article><small>TAREFAS PENDENTES</small><b>{pending}</b><p>{completed} concluídas</p></article></div><div className="quickGrid"><button onClick={()=>setView("conversations")}><MessageSquare/><span><b>Continuar conversa</b><small>Consulte e pesquise seu histórico</small></span><span>↗</span></button><button onClick={()=>setView("tasks")}><ListTodo/><span><b>Organizar tarefas</b><small>Registre prioridades e acompanhe progresso</small></span><span>↗</span></button></div><section className="chat"><ChatHeader/><div className="conversation"><div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS <small>ASSISTENTE</small></b><p>{reply}</p></div></div></div><Composer text={text} setText={setText} send={send} loading={loading} toggleMic={toggleMic} listening={listening} voice={voice} setVoice={setVoice}/></section></>}
+ {view==="conversations"&&<><div className="eyebrow">● MEMÓRIA LOCAL</div><h1>Central de <span>conversas.</span></h1><p className="subtitle">Pesquise suas mensagens salvas ou continue falando com o ATLAS.</p><section className="chat fullChat"><ChatHeader/><div ref={conversationScrollRef} className="conversation historyList" aria-live="polite">{history.length===0?<div className="emptyState"><MessageSquare size={30}/><b>Nenhuma conversa ainda</b><p>Envie uma mensagem abaixo para iniciar. As mensagens ficam salvas neste navegador.</p></div>:<>{history.map((m,i)=><div className="answer" key={i}><div className="botIcon">{m.role==="assistant"?<Bot/>:<span>V</span>}</div><div><b>{m.role==="assistant"?"ATLAS":"VOCÊ"} <small>{m.role==="assistant"?"ASSISTENTE":"MENSAGEM"}</small></b><p>{m.content}</p></div></div>)}</>}<div ref={conversationEndRef} /></div><Composer text={text} setText={setText} send={send} loading={loading} toggleMic={toggleMic} listening={listening} voice={voice} setVoice={setVoice}/></section><div className="inlineActions"><button className="secondaryAction" onClick={()=>{if(confirm("Limpar todo o histórico salvo neste navegador?")){setHistory([]);setReply("Olá! Sou o ATLAS. Como posso ajudar?")}}}><Trash2 size={15}/> Limpar histórico</button><button className="secondaryAction" onClick={()=>{setText("");setView("overview")}}><RotateCcw size={15}/> Voltar ao painel</button></div></>}
+ {view==="tasks"&&<><div className="eyebrow">● PLANEJAMENTO PESSOAL</div><h1>Centro de <span>tarefas.</span></h1><p className="subtitle">Transforme ideias em ações. Suas tarefas ficam salvas neste navegador.</p><div className="taskStats"><article><small>TOTAL</small><b>{tasks.length}</b></article><article><small>PENDENTES</small><b>{pending}</b></article><article><small>CONCLUÍDAS</small><b>{completed}</b></article></div><form className="taskForm" onSubmit={addTask}><input value={taskText} onChange={e=>setTaskText(e.target.value)} placeholder="Qual é a próxima ação?" aria-label="Nova tarefa"/><button className="send" disabled={!taskText.trim()}><Plus size={17}/> Adicionar tarefa</button></form><div className="taskList">{tasks.length===0?<div className="emptyState"><ListTodo size={30}/><b>Seu espaço está livre</b><p>Adicione sua primeira tarefa para começar a organizar as prioridades.</p></div>:tasks.map(t=><article className={`taskRow ${t.done?"taskDone":""}`} key={t.id}><button className="checkTask" aria-label={t.done?"Reabrir tarefa":"Concluir tarefa"} onClick={()=>setTasks(all=>all.map(x=>x.id===t.id?{...x,done:!x.done}:x))}>{t.done?<Check size={16}/>:null}</button><span className="taskTitle">{t.title}<small>{t.done?"Concluída":"Pendente"}</small></span><button className="iconAction" aria-label="Excluir tarefa" onClick={()=>setTasks(all=>all.filter(x=>x.id!==t.id))}><Trash2 size={16}/></button></article>)}</div>{completed>0&&<button className="secondaryAction" onClick={()=>setTasks(t=>t.filter(x=>!x.done))}><Trash2 size={15}/> Remover concluídas</button>}</>}
+ <footer>ATLAS SYSTEMS / BUILD 0.3.0 <span>BASE ENAT + CONHECIMENTO GERAL / AUTONOMIA CONTROLADA</span></footer></div></section></main>;
 }
+function ChatHeader(){return <header className="chatHeader"><AudioLines/><div><b>Converse com o ATLAS</b><small>ENAT, conhecimento geral, planejamento e análise.</small></div><span>● ONLINE</span></header>}
+function Composer({text,setText,send,loading,toggleMic,listening,voice,setVoice}:{text:string;setText:(s:string)=>void;send:(e:FormEvent)=>void;loading:boolean;toggleMic:()=>void;listening:boolean;voice:boolean;setVoice:(v:boolean)=>void}){return <form className="composer" onSubmit={send}><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Pergunte sobre ENAT, HSI, NEXUS 12 ou qualquer outro assunto…" rows={2}/><div className="formFoot"><button type="button" className="voiceButton" onClick={toggleMic}>{listening?<MicOff size={16}/>:<Mic size={16}/>} {listening?"Ouvindo…":"Falar mensagem"}</button><button type="button" className="voiceButton" onClick={()=>setVoice(!voice)}><Volume2 size={15}/> Resposta {voice?"falada":"silenciosa"}</button><button className="send" disabled={loading||!text.trim()}><Send size={16}/> {loading?"Processando…":"Enviar"}</button></div></form>}
