@@ -70,6 +70,30 @@ export async function POST(request: Request) {
       }, { status: 504 });
     }
 
+    // Render free instances can briefly return gateway errors while the voice service wakes up.
+    // Retry transient upstream statuses without touching credentials or retrying auth failures.
+    if ([502, 503, 504].includes(piperResponse.status)) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      try {
+        const retryResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${piperToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ text: body.text.trim() }),
+          signal: AbortSignal.timeout(100000)
+        });
+        if (retryResponse.ok || ![502, 503, 504].includes(retryResponse.status)) {
+          piperResponse = retryResponse;
+        } else {
+          console.error("ATLAS Piper transient retry failed:", retryResponse.status);
+        }
+      } catch (error) {
+        console.error("ATLAS Piper transient retry connection error:", error instanceof Error ? error.name : "unknown");
+      }
+    }
+
     if (!piperResponse.ok) {
       // Keep provider diagnostics in server logs; never return raw upstream details to the browser.
       const upstreamDetail = (await piperResponse.clone().text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 500);
