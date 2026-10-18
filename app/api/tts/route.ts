@@ -71,7 +71,12 @@ export async function POST(request: Request) {
     }
 
     if (!piperResponse.ok) {
-      console.error("ATLAS Piper TTS provider error:", piperResponse.status);
+      // Keep provider diagnostics in server logs; never return raw upstream details to the browser.
+      const upstreamDetail = (await piperResponse.clone().text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 500);
+      console.error("ATLAS Piper TTS provider error:", JSON.stringify({
+        status: piperResponse.status,
+        detail: upstreamDetail || "no response body"
+      }));
       if (piperResponse.status === 401 || piperResponse.status === 403) {
         return NextResponse.json({
           error: "A autenticação do Piper falhou. PIPER_API_TOKEN precisa ser idêntico nos dois serviços de homologação."
