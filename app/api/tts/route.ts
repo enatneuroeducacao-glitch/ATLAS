@@ -70,10 +70,11 @@ export async function POST(request: Request) {
       }, { status: 504 });
     }
 
-    // Render free instances can briefly return gateway errors while the voice service wakes up.
-    // Retry transient upstream statuses without touching credentials or retrying auth failures.
-    if ([502, 503, 504].includes(piperResponse.status)) {
-      await new Promise(resolve => setTimeout(resolve, 1200));
+    // Render free instances may sleep and return a gateway error while waking.
+    // Retry transient statuses with increasing delays; never retry authentication failures.
+    for (const delayMs of [1800, 3500]) {
+      if (![502, 503, 504].includes(piperResponse.status)) break;
+      await new Promise(resolve => setTimeout(resolve, delayMs));
       try {
         const retryResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
           method: "POST",
@@ -84,11 +85,9 @@ export async function POST(request: Request) {
           body: JSON.stringify({ text: body.text.trim() }),
           signal: AbortSignal.timeout(100000)
         });
-        if (retryResponse.ok || ![502, 503, 504].includes(retryResponse.status)) {
-          piperResponse = retryResponse;
-        } else {
-          console.error("ATLAS Piper transient retry failed:", retryResponse.status);
-        }
+        piperResponse = retryResponse;
+        if (piperResponse.ok || ![502, 503, 504].includes(piperResponse.status)) break;
+        console.error("ATLAS Piper transient retry failed:", piperResponse.status);
       } catch (error) {
         console.error("ATLAS Piper transient retry connection error:", error instanceof Error ? error.name : "unknown");
       }
