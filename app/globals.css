@@ -8,3 +8,55 @@
 .topicButtons button{border:1px solid #31515f;background:#122633;color:#b8d5df;border-radius:7px;padding:8px 10px;font-size:10px;transition:.18s}
 .topicButtons button:hover{border-color:#70e4e8;color:#8ff3ee;background:#163440}
 @media(max-width:800px){.quickTopics{grid-template-columns:1fr;gap:11px}}
+
+
+/* Compacta o painel sem alterar a identidade visual futurista */
+.content{padding:20px 34px 16px}
+.subtitle{margin-bottom:14px}
+.hero{min-height:148px;padding:20px 28px;margin-bottom:10px}
+.hero h2{font-size:25px;margin:8px 0 5px}
+.hero p{margin:0;max-width:650px}
+.orb{width:104px;height:104px;margin-right:7%}
+.orb svg{width:42px;height:42px}
+.quickTopics{grid-template-columns:165px minmax(0,1fr);gap:12px;margin-bottom:10px;padding:10px 13px}
+.topicButtons{gap:6px}
+.topicButtons button{padding:6px 9px;font-size:9px}
+.metrics{gap:9px;margin-bottom:10px}
+.metrics article{padding:10px 13px}
+.metrics b{font-size:15px;margin:5px 0 2px}
+.metrics p{font-size:9px}
+.chat{width:100%;max-width:none}
+.chat>header{padding:11px 14px}
+.conversation{max-height:clamp(130px,24vh,245px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#315564 #101823}
+.answer{min-height:0;padding:11px 15px}
+.answer p{margin:7px 0;line-height:1.55}
+form{margin:0 10px 10px;padding:8px}
+textarea{min-height:42px;max-height:110px}
+.formFoot{padding-top:7px}
+.voiceButton,.send{padding:7px 9px}
+.content>footer{margin-top:12px}
+@media(max-width:800px){
+ .content{padding:17px 14px 14px}
+ .hero{min-height:135px;padding:18px}
+ .hero h2{font-size:23px}
+ .quickTopics{grid-template-columns:1fr;gap:8px}
+ .metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .metrics article{padding:9px}
+ .metrics b{font-size:13px}
+ .metrics p{font-size:8px}
+ .conversation{max-height:30vh}
+}
+@media(max-width:520px){
+ .content{padding:15px 10px 12px}
+ .hero{min-height:128px;padding:15px}
+ .hero h2{font-size:21px}
+ .metrics{grid-template-columns:1fr}
+ .metrics article{display:grid;grid-template-columns:1fr auto;align-items:center;gap:3px 8px}
+ .metrics article small{grid-column:1/-1}
+ .metrics b{margin:2px 0}
+ .metrics p{margin:0}
+ .conversation{max-height:34vh}
+ .formFoot{flex-wrap:wrap;gap:6px}
+ .send{margin-left:auto}
+ .voiceButton,.send{font-size:9px}
+}
