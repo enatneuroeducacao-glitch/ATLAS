@@ -1,6 +1,6 @@
-# ATLAS — Assistente Pessoal Inteligente
+# ATLAS II — Instrutor Inteligente
 
-Assistente pessoal com painel web, chat, entrada por voz no navegador, resposta falada e base para futuras integrações Windows. Esta versão inicial não executa comandos no computador nem altera sistemas externos.
+Instrutor inteligente com painel web, chat, entrada por voz no navegador, resposta falada e base de conhecimento ENAT ampliada para trânsito, legislação, formação de condutores, neuroeducação e segurança viária. Esta versão inicial não executa comandos no computador nem altera sistemas externos.
 
 ## Requisitos
 - Node.js 20.9 ou superior
