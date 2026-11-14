@@ -1,35 +1,32 @@
 # ATLAS II — Instrutor Inteligente
 
-Assistente especializado em trânsito, legislação, formação de condutores e instrutores, neuroeducação e segurança viária. O chat utiliza Google Gemini; a resposta falada usa Piper TTS em serviço separado no Render. A entrada por voz utiliza Web Speech API do navegador.
+Assistente especializado em trânsito, legislação, formação de condutores e instrutores, neuroeducação e segurança viária. O chat utiliza Google Gemini. A resposta falada prioriza Gemini 3.8 Flash-Lite TTS, com orientação de voz masculina adulta, grave, firme e natural em português brasileiro. O Piper auto-hospedado permanece como alternativa quando a voz neural estiver indisponível. A entrada por voz utiliza Web Speech API do navegador.
 
 ## Requisitos
 - Node.js 20.9 ou superior
 - npm
-- Chave da Google Gemini API
-- Serviço Piper TTS acessível por HTTPS
+- Chave Google Gemini API com acesso ao nível gratuito
+- Serviço Piper opcional, para contingência local/auto-hospedada
 
 ## Variáveis de ambiente
 Configure no Render (ou em `.env.local` no desenvolvimento):
 
 - `GEMINI_API_KEY`: chave da Google Gemini API.
-- `GEMINI_MODEL`: modelo Gemini, padrão `gemini-3.8-flash`.
-- `PIPER_TTS_URL`: URL base privada/pública do serviço Piper, sem barra final.
-- `PIPER_API_TOKEN`: token compartilhado entre o serviço ATLAS e o serviço Piper. Use o mesmo segredo nos dois serviços; nunca o grave no GitHub.
+- `GEMINI_MODEL`: modelo usado para respostas do chat.
+- `GEMINI_TTS_MODEL`: opcional; padrão `gemini-3.8-flash-lite-tts`.
+- `GEMINI_TTS_VOICE`: opcional; padrão `Orus`.
+- `PIPER_TTS_URL`: URL base do serviço Piper, sem barra final.
+- `PIPER_API_TOKEN`: token compartilhado entre ATLAS e Piper. Nunca grave o segredo no GitHub.
 
-## Executar localmente
-1. Instale Node.js LTS.
-2. Clone o repositório e execute `npm install`.
-3. Copie `.env.example` para `.env.local` e preencha as variáveis.
-4. Execute `npm run dev` e abra http://localhost:3000.
+## Política de custo
+A integração de voz não chama provedores pagos alternativos. O Gemini TTS deve ser usado somente dentro do nível gratuito e das cotas disponíveis na chave. Ao atingir limites gratuitos, o ATLAS tenta o Piper auto-hospedado; se ele não estiver disponível, mantém a resposta escrita e informa que o áudio não pôde ser gerado. Não configure faturamento pago para esta homologação. A disponibilidade e os limites gratuitos podem mudar conforme o Google.
+
+A camada gratuita do Gemini API pode usar o conteúdo enviado para melhorar os produtos do Google, conforme os termos do serviço. Não envie dados pessoais sensíveis ou informações confidenciais para síntese de voz.
 
 ## Render
-O Web Service principal usa `npm install && npm run build` e `npm start`. Configure `GEMINI_API_KEY`, `GEMINI_MODEL`, `PIPER_TTS_URL` e `PIPER_API_TOKEN` no serviço principal. Configure o mesmo `PIPER_API_TOKEN` no serviço Docker `atlas-piper-tts-test`. O serviço Piper utiliza o modelo português brasileiro `pt_BR-faber-medium` por padrão.
+No serviço principal, mantenha `GEMINI_API_KEY` e configure opcionalmente `GEMINI_TTS_MODEL` e `GEMINI_TTS_VOICE`. Para fallback Piper, mantenha `PIPER_TTS_URL` e `PIPER_API_TOKEN` configurados também no serviço Piper.
 
 ## Verificação
-- `GET /api/health`: informa se a chave Gemini e a ligação Piper estão configuradas, sem revelar segredos.
+- `GET /api/health`: informa configuração do chat e do mecanismo de voz sem revelar segredos.
 - `POST /api/chat`: gera respostas com Gemini.
-- `POST /api/tts`: gera WAV através do serviço Piper.
-- O navegador oferece Speech Synthesis como alternativa se o Piper estiver indisponível.
-
-## Segurança
-Não salve tokens, senhas, chaves API ou arquivos `.env` no repositório. Use tokens longos e aleatórios e mantenha a autenticação entre os serviços.
+- `POST /api/tts`: gera WAV com Gemini TTS; usa Piper somente como contingência.
