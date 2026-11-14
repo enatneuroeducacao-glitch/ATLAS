@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cleanTextForSpeech } from "@/lib/speech-text";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
           Authorization: `Bearer ${piperToken}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text: body.text.trim() }),
+        body: JSON.stringify({ text: cleanTextForSpeech(body.text) }),
         signal: AbortSignal.timeout(100000)
       });
     } catch (error) {
