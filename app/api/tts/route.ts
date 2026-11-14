@@ -4,161 +4,137 @@ import { cleanTextForSpeech } from "@/lib/speech-text";
 
 export const runtime = "nodejs";
 
-const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+const buckets = new Map<string, { count: number; resetAt: number }>();
+const cache = new Map<string, { audio: Uint8Array; createdAt: number }>();
 const WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_WINDOW = 12;
-const AUDIO_CACHE_TTL_MS = 10 * 60_000;
-const audioCache = new Map<string, { audio: Uint8Array; createdAt: number }>();
+const MAX_REQUESTS = 10;
+const CACHE_TTL = 10 * 60_000;
+const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
 
 function allowRequest(request: Request) {
   const now = Date.now();
-  const client = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const bucket = rateBuckets.get(client);
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const bucket = buckets.get(ip);
   if (!bucket || now >= bucket.resetAt) {
-    rateBuckets.set(client, { count: 1, resetAt: now + WINDOW_MS });
+    buckets.set(ip, { count: 1, resetAt: now + WINDOW_MS });
     return true;
   }
-  if (bucket.count >= MAX_REQUESTS_PER_WINDOW) return false;
+  if (bucket.count >= MAX_REQUESTS) return false;
   bucket.count += 1;
   return true;
+}
+
+function audioFromInteraction(data: any): Buffer | null {
+  const direct = data?.output_audio?.data;
+  if (typeof direct === "string") return Buffer.from(direct, "base64");
+  const steps = Array.isArray(data?.steps) ? data.steps : [];
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const parts = Array.isArray(steps[i]?.content) ? steps[i].content : [];
+    for (let j = parts.length - 1; j >= 0; j--) {
+      if (parts[j]?.type === "audio" && typeof parts[j]?.data === "string") {
+        return Buffer.from(parts[j].data, "base64");
+      }
+    }
+  }
+  return null;
+}
+
+async function piperFallback(text: string): Promise<Response | null> {
+  const url = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
+  const token = process.env.PIPER_API_TOKEN?.trim();
+  if (!url || !token) return null;
+  try {
+    const response = await fetch(`${url}/v1/audio/speech`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(45000)
+    });
+    return response.ok && (response.headers.get("content-type") || "").includes("audio/") ? response : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(request: Request) {
   try {
     const origin = request.headers.get("origin");
     const host = request.headers.get("host");
-    if (origin && host) {
-      try {
-        if (new URL(origin).host !== host) return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });
-      } catch {
-        return NextResponse.json({ error: "Origem inválida." }, { status: 403 });
-      }
+    if (origin && host && new URL(origin).host !== host) {
+      return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });
     }
-
     if (!allowRequest(request)) {
-      return NextResponse.json({ error: "Muitas solicitações de voz. Aguarde um minuto." }, { status: 429 });
+      return NextResponse.json({ error: "Limite temporário de voz atingido. Aguarde um minuto." }, { status: 429 });
     }
-
     const body = await request.json() as { text?: unknown };
     if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 4096) {
       return NextResponse.json({ error: "Texto inválido. O limite é de 4.096 caracteres." }, { status: 400 });
     }
-
     const speechText = cleanTextForSpeech(body.text);
-    if (!speechText) return NextResponse.json({ error: "Não há texto para leitura após remover a formatação." }, { status: 400 });
-    const cacheKey = createHash("sha256").update(speechText).digest("hex");
-    const cached = audioCache.get(cacheKey);
-    if (cached && Date.now() - cached.createdAt < AUDIO_CACHE_TTL_MS) {
-      return new Response(cached.audio.buffer.slice(cached.audio.byteOffset, cached.audio.byteOffset + cached.audio.byteLength) as ArrayBuffer, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff", "X-ATLAS-TTS-Cache": "HIT" } });
-    }
-    if (cached) audioCache.delete(cacheKey);
+    if (!speechText) return NextResponse.json({ error: "Não há texto para leitura." }, { status: 400 });
 
-    const piperUrl = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
-    const piperToken = process.env.PIPER_API_TOKEN?.trim();
-    if (!piperUrl || !piperToken) {
-      console.error("ATLAS Piper TTS is not configured:", JSON.stringify({
-        urlConfigured: Boolean(piperUrl),
-        tokenConfigured: Boolean(piperToken)
-      }));
-      return NextResponse.json({
-        error: "A voz Piper não está configurada corretamente na homologação. Confira PIPER_TTS_URL e PIPER_API_TOKEN no Render."
-      }, { status: 503 });
+    const key = createHash("sha256").update(speechText).digest("hex");
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.createdAt < CACHE_TTL) {
+      return new Response(cached.audio, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "cache" } });
     }
+    if (cached) cache.delete(key);
 
-    let piperResponse: Response;
-    try {
-      piperResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${piperToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ text: speechText }),
-        signal: AbortSignal.timeout(100000)
-      });
-    } catch (error) {
-      console.error("ATLAS Piper TTS connection error:", error instanceof Error ? error.name : "unknown");
-      return NextResponse.json({
-        error: "O serviço Piper não respondeu a tempo. Tente um texto menor; se persistir, verifique o serviço de voz no Render."
-      }, { status: 504 });
-    }
-
-    // Render free instances may sleep and return a gateway error while waking.
-    // Retry transient statuses with increasing delays; never retry authentication failures.
-    for (const delayMs of [1800, 3500]) {
-      if (![502, 503, 504].includes(piperResponse.status)) break;
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
       try {
-        const retryResponse = await fetch(`${piperUrl}/v1/audio/speech`, {
+        const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${piperToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ text: speechText }),
-          signal: AbortSignal.timeout(100000)
+          headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: TTS_MODEL,
+            input: [{
+              type: "user_input",
+              content: [{
+                type: "text",
+                text: speechText,
+                annotations: [{
+                  type: "speech_metadata",
+                  style: "Fale em português brasileiro natural, como um homem adulto com voz grave, encorpada, firme e acolhedora. Timbre masculino de registro médio-grave, ressonância natural, articulação clara e ritmo de conversa. Use entonação humana, variação melódica discreta, pausas curtas entre ideias e ênfase suave nos pontos importantes. Soe como um instrutor experiente conversando diretamente com uma pessoa, nunca como locutor de GPS, leitura automática, robô ou voz excessivamente teatral. Pronuncie siglas e termos técnicos com clareza. Leia somente o texto fornecido, sem acrescentar palavras."
+                }]
+              }]
+            }],
+            response_format: { type: "audio", mime_type: "audio/wav", sample_rate: 24000 },
+            generation_config: { speech_config: [{ voice: process.env.GEMINI_TTS_VOICE || "Orus" }] }
+          }),
+          signal: AbortSignal.timeout(55000)
         });
-        piperResponse = retryResponse;
-        if (piperResponse.ok || ![502, 503, 504].includes(piperResponse.status)) break;
-        console.error("ATLAS Piper transient retry failed:", piperResponse.status);
+        if (response.ok) {
+          const data = await response.json();
+          const audio = audioFromInteraction(data);
+          if (audio?.length) {
+            const bytes = new Uint8Array(audio);
+            cache.set(key, { audio: bytes, createdAt: Date.now() });
+            if (cache.size > 40) {
+              const oldest = cache.keys().next().value;
+              if (oldest) cache.delete(oldest);
+            }
+            return new Response(bytes, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "gemini-neural" } });
+          }
+          console.error("ATLAS Gemini TTS returned no audio payload");
+        } else {
+          const detail = (await response.clone().text().catch(() => "")).slice(0, 300);
+          console.error("ATLAS Gemini TTS error:", response.status, detail);
+        }
       } catch (error) {
-        console.error("ATLAS Piper transient retry connection error:", error instanceof Error ? error.name : "unknown");
+        console.error("ATLAS Gemini TTS request failed:", error instanceof Error ? error.name : "unknown");
       }
     }
 
-    if (!piperResponse.ok) {
-      // Keep provider diagnostics in server logs; never return raw upstream details to the browser.
-      const upstreamDetail = (await piperResponse.clone().text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 500);
-      console.error("ATLAS Piper TTS provider error:", JSON.stringify({
-        status: piperResponse.status,
-        detail: upstreamDetail || "no response body"
-      }));
-      if (piperResponse.status === 401 || piperResponse.status === 403) {
-        return NextResponse.json({
-          error: "A autenticação do Piper falhou. PIPER_API_TOKEN precisa ser idêntico nos dois serviços de homologação."
-        }, { status: 502 });
-      }
-      if (piperResponse.status === 503) {
-        return NextResponse.json({
-          error: "O Piper está sem autenticação ou o modelo de voz não está disponível. Confira /health no serviço Piper."
-        }, { status: 503 });
-      }
-      if (piperResponse.status === 429) {
-        const retryAfter = piperResponse.headers.get("retry-after") || "15";
-        return NextResponse.json(
-          { error: "O serviço Piper atingiu o limite temporário de solicitações. A resposta escrita continua disponível; a voz alternativa do navegador será utilizada. Aguarde antes de solicitar outro áudio." },
-          { status: 429, headers: { "Retry-After": retryAfter } }
-        );
-      }
-      if (piperResponse.status === 504) {
-        return NextResponse.json({
-          error: "O Piper excedeu o tempo de geração. Tente uma frase menor ou aguarde o serviço terminar de iniciar."
-        }, { status: 504 });
-      }
-      return NextResponse.json({ error: "O Piper não conseguiu gerar o áudio. Verifique os logs do serviço de voz." }, { status: 502 });
+    // No paid provider is called. Piper is the local/self-hosted zero-cost fallback.
+    const piper = await piperFallback(speechText);
+    if (piper) {
+      const bytes = new Uint8Array(await piper.arrayBuffer());
+      return new Response(bytes, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=300", "X-ATLAS-Voice": "piper-fallback" } });
     }
-
-    const contentType = piperResponse.headers.get("content-type") || "";
-    if (!contentType.toLowerCase().includes("audio/")) {
-      console.error("ATLAS Piper TTS returned unexpected content type:", contentType || "missing");
-      return NextResponse.json({ error: "O Piper respondeu sem um arquivo de áudio válido." }, { status: 502 });
-    }
-
-    const audio = new Uint8Array(await piperResponse.arrayBuffer());
-    audioCache.set(cacheKey, { audio, createdAt: Date.now() });
-    if (audioCache.size > 30) {
-      const oldestKey = audioCache.keys().next().value;
-      if (oldestKey) audioCache.delete(oldestKey);
-    }
-
-    return new Response(audio, {
-      headers: {
-        "Content-Type": "audio/wav",
-        "Cache-Control": "private, max-age=600",
-        "X-ATLAS-TTS-Cache": "MISS",
-        "X-Content-Type-Options": "nosniff"
-      }
-    });
+    return NextResponse.json({
+      error: "A voz neural gratuita está temporariamente indisponível. O texto da resposta foi preservado; tente reproduzir novamente mais tarde."
+    }, { status: 503 });
   } catch (error) {
     console.error("ATLAS TTS error:", error instanceof Error ? error.name : "unknown");
     return NextResponse.json({ error: "Falha ao gerar áudio." }, { status: 500 });
