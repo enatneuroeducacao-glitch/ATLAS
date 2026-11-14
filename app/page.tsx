@@ -100,7 +100,7 @@ export default function Home() {
   }
   function navigate(id: string, prompt?: string) {
     setActiveMenu(id);
-    if (prompt) { setText(prompt); setActiveId(current => current || createConversation().id); }
+    if (prompt) { setText(prompt); if (!activeId) createConversation(); }
     if (id === "overview") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     if (id === "chat") { if (!activeId) createConversation(); window.setTimeout(() => document.getElementById("atlas-chat-input")?.focus(), 100); }
     if (id === "history") document.getElementById("atlas-history")?.scrollIntoView({ behavior: "smooth", block: "start" });
