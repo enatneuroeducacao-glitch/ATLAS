@@ -55,9 +55,10 @@ export async function POST(request: Request) {
     const key = process.env.GEMINI_API_KEY;
     if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
     const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-    const modelsToTry = configuredModel === "gemini-3.8-flash"
-      ? [configuredModel, "gemini-3.6-flash"]
-      : [configuredModel, "gemini-3.8-flash", "gemini-3.6-flash"].filter((model, index, list) => list.indexOf(model) === index);
+    // Stable low-latency fallbacks: the Lite model is last so the primary model
+    // keeps its quality when available, while 503/429/404 can fail over quickly.
+    const modelsToTry = [configuredModel, "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"]
+      .filter((model, index, list) => list.indexOf(model) === index);
     let response: Response | undefined;
     for (const model of modelsToTry) {
       try {
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
             contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
             generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: "low" } }
           }),
-          signal: AbortSignal.timeout(model === modelsToTry[0] ? 60000 : 35000)
+          signal: AbortSignal.timeout(model === modelsToTry[0] ? 18000 : 12000)
         });
         if (response.ok) break;
         console.error("ATLAS Gemini provider error:", model, response.status);
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
         break;
       }
     }
-    if (!response) return NextResponse.json({ error: "O Google Gemini excedeu o tempo de resposta de 60 segundos. Tente novamente; se continuar, verifique a disponibilidade e a cota da API no Google AI Studio." }, { status: 504 });
+    if (!response) return NextResponse.json({ error: "Os modelos Gemini disponíveis não responderam dentro do tempo esperado. Tente novamente em instantes; se persistir, confira a disponibilidade e a cota da API no Google AI Studio." }, { status: 504 });
     if (!response.ok) {
       let providerCode = "";
       try {
