@@ -72,3 +72,31 @@ textarea{min-height:42px;max-height:110px}
  .sidebar .navItem svg{width:18px;height:18px}
  .sidebar .navGroupLabel{display:none}
 }
+
+
+/* Cabeçalho minimalista: mantém a identidade futurista e libera espaço para a conversa */
+.content{padding:18px 28px 14px}
+.welcomeBar{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:104px;margin:0 0 14px;padding:17px 22px;border:1px solid #294653;border-radius:10px;background:linear-gradient(105deg,#142a35,#101b2a 76%);position:relative;overflow:hidden}
+.welcomeBar:after{content:"";position:absolute;inset:0;background-image:linear-gradient(#4c869012 1px,transparent 1px),linear-gradient(90deg,#4c869012 1px,transparent 1px);background-size:25px 25px;pointer-events:none}
+.welcomeBar>div:first-child{position:relative;z-index:1}
+.welcomeBar .eyebrow{font:9px 'DM Mono';letter-spacing:1.4px;color:#83dfe3}
+.welcomeBar .eyebrow span{color:#8198a8}
+.welcomeBar h1{font:650 clamp(20px,2.2vw,27px) Manrope;letter-spacing:-.8px;margin:6px 0 3px}
+.welcomeBar p{margin:0;color:#94a8b8;font-size:11px}
+.welcomeOrb{position:relative;z-index:1;width:58px;height:58px;flex-shrink:0;border:1px solid #69e6e7;border-radius:50%;display:grid;place-items:center;color:#91f7f2;background:radial-gradient(circle,#1d4a5a,#0d1826 70%);box-shadow:0 0 30px #4bdde525}
+.chat{width:100%;max-width:none}
+.content>footer{margin-top:12px}
+@media(max-width:800px){
+ .content{padding:15px 14px 12px}
+ .welcomeBar{min-height:90px;padding:14px 16px;margin-bottom:11px}
+ .welcomeOrb{width:48px;height:48px}
+ .welcomeBar h1{font-size:21px}
+}
+@media(max-width:520px){
+ .content{padding:12px 10px}
+ .welcomeBar{min-height:82px;padding:12px;margin-bottom:9px}
+ .welcomeBar h1{font-size:18px}
+ .welcomeBar p{font-size:10px;max-width:260px;line-height:1.4}
+ .welcomeOrb{width:42px;height:42px}
+ .welcomeOrb svg{width:21px;height:21px}
+}
