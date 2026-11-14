@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, House, Plus, Trash2, Clock3 } from "lucide-react";
+import { cleanTextForSpeech } from "@/lib/speech-text";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Conversation = { id: string; title: string; messages: Message[]; updatedAt: number };
@@ -140,14 +141,14 @@ export default function Home() {
       if (voice) {
         try {
           window.speechSynthesis?.cancel(); audioRef.current?.pause();
-          const speech = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: answer }), signal: AbortSignal.timeout(115000) });
+          const speech = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: cleanTextForSpeech(answer) }), signal: AbortSignal.timeout(115000) });
           if (!speech.ok) throw new Error("Piper indisponível");
           const audioUrl = URL.createObjectURL(await speech.blob());
           const audio = new Audio(audioUrl); audioRef.current = audio;
           audio.onended = () => URL.revokeObjectURL(audioUrl);
           await audio.play();
         } catch {
-          if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(answer); u.lang = "pt-BR"; window.speechSynthesis.speak(u); }
+          if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(cleanTextForSpeech(answer)); u.lang = "pt-BR"; window.speechSynthesis.speak(u); }
         }
       }
     } catch (error) {
