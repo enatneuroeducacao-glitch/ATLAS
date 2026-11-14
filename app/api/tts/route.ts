@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const cacheKey = createHash("sha256").update(speechText).digest("hex");
     const cached = audioCache.get(cacheKey);
     if (cached && Date.now() - cached.createdAt < AUDIO_CACHE_TTL_MS) {
-      return new Response(cached.audio, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff", "X-ATLAS-TTS-Cache": "HIT" } });
+      return new Response(cached.audio.buffer.slice(cached.audio.byteOffset, cached.audio.byteOffset + cached.audio.byteLength) as ArrayBuffer, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff", "X-ATLAS-TTS-Cache": "HIT" } });
     }
     if (cached) audioCache.delete(cacheKey);
 
