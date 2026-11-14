@@ -54,10 +54,10 @@ export async function POST(request: Request) {
     if (!allowRequest(request)) return NextResponse.json({ error: "Muitas mensagens em pouco tempo. Aguarde um minuto e tente novamente." }, { status: 429 });
     const key = process.env.GEMINI_API_KEY;
     if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
-    const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+    const configuredModel = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
     // Stable low-latency fallbacks: the Lite model is last so the primary model
     // keeps its quality when available, while 503/429/404 can fail over quickly.
-    const modelsToTry = [configuredModel, "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"]
+    const modelsToTry = [configuredModel, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
       .filter((model, index, list) => list.indexOf(model) === index);
     let response: Response | undefined;
     for (const model of modelsToTry) {
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
             contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
             generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: "low" } }
           }),
-          signal: AbortSignal.timeout(model === modelsToTry[0] ? 18000 : 12000)
+          signal: AbortSignal.timeout(model === modelsToTry[0] ? 12000 : 9000)
         });
         if (response.ok) break;
         console.error("ATLAS Gemini provider error:", model, response.status);
@@ -78,9 +78,9 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error("ATLAS Gemini request failed:", model, error instanceof Error ? error.name : "unknown");
         response = undefined;
-        // A timeout on the primary model is not an HTTP provider error; stop here
-        // instead of stacking another full timeout and leaving the user waiting.
-        break;
+        // Continue para modelos gratuitos alternativos quando houver timeout.
+        response = undefined;
+        continue;
       }
     }
     if (!response) return NextResponse.json({ error: "Os modelos Gemini disponíveis não responderam dentro do tempo esperado. Tente novamente em instantes; se persistir, confira a disponibilidade e a cota da API no Google AI Studio." }, { status: 504 });
