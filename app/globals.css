@@ -60,3 +60,15 @@ textarea{min-height:42px;max-height:110px}
  .send{margin-left:auto}
  .voiceButton,.send{font-size:9px}
 }
+
+/* Navegação funcional do ATLAS II */
+.sidebar .navItem{width:100%;border:1px solid transparent;background:transparent;text-align:left;font:inherit;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.sidebar .navItem:hover{background:#122631;border-color:#284a56;color:#9af2ed}
+.sidebar .navItem.active{background:linear-gradient(100deg,#173440,#12222e);border-color:#315a66;color:#86eeee;box-shadow:inset 2px 0 0 #70e4e8}
+.sidebar .navGroupLabel{margin-top:17px;margin-bottom:7px}
+.sidebar .navItem svg{flex-shrink:0}
+@media(max-width:800px){
+ .sidebar .navItem{justify-content:center;font-size:0;gap:0;padding:12px 0}
+ .sidebar .navItem svg{width:18px;height:18px}
+ .sidebar .navGroupLabel{display:none}
+}
