@@ -118,6 +118,36 @@ export default function Home() {
     recRef.current = rec;
     try { rec.start(); setListening(true); } catch { setListening(false); }
   }
+  async function speakAnswer(answer: string) {
+    const spoken = cleanTextForSpeech(answer);
+    if (!spoken) return;
+    try {
+      window.speechSynthesis?.cancel();
+      audioRef.current?.pause();
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: spoken }),
+        signal: AbortSignal.timeout(65000)
+      });
+      if (!response.ok) throw new Error("Voz neural indisponível");
+      const audioUrl = URL.createObjectURL(await response.blob());
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(audioUrl);
+      audio.onerror = () => URL.revokeObjectURL(audioUrl);
+      await audio.play();
+    } catch {
+      // Browser voice is the final fallback; the written answer remains available.
+      if ("speechSynthesis" in window) {
+        const utterance = new SpeechSynthesisUtterance(spoken);
+        utterance.lang = "pt-BR";
+        utterance.rate = 0.96;
+        utterance.pitch = 0.88;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+  }
   async function send(e: FormEvent) {
     e.preventDefault();
     if (!text.trim() || loading) return;
@@ -138,19 +168,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || "Não foi possível gerar a resposta.");
       const answer = String(data.reply || "O modelo não retornou uma resposta.");
       setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, messages: [...nextHistory, { role: "assistant" as const, content: answer }].slice(-80), updatedAt: Date.now() } : c));
-      if (voice) {
-        try {
-          window.speechSynthesis?.cancel(); audioRef.current?.pause();
-          const speech = await fetch("/api/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: cleanTextForSpeech(answer) }), signal: AbortSignal.timeout(115000) });
-          if (!speech.ok) throw new Error("Piper indisponível");
-          const audioUrl = URL.createObjectURL(await speech.blob());
-          const audio = new Audio(audioUrl); audioRef.current = audio;
-          audio.onended = () => URL.revokeObjectURL(audioUrl);
-          await audio.play();
-        } catch {
-          if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(cleanTextForSpeech(answer)); u.lang = "pt-BR"; window.speechSynthesis.speak(u); }
-        }
-      }
+      if (voice) void speakAnswer(answer);
     } catch (error) {
       const messageError = error instanceof Error ? error.message : "Falha ao acessar o servidor.";
       const friendly = messageError.includes("timed out") || messageError.includes("Timeout") || messageError.includes("abort") ? "A resposta está demorando além do esperado. Tente novamente em alguns instantes." : messageError;
