@@ -100,3 +100,37 @@ textarea{min-height:42px;max-height:110px}
  .welcomeOrb{width:42px;height:42px}
  .welcomeOrb svg{width:21px;height:21px}
 }
+
+
+/* Histórico de conversas no padrão de um assistente moderno */
+.newChatButton{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;margin:-16px 0 23px;border:1px solid #34727a;border-radius:7px;background:linear-gradient(100deg,#153843,#142a35);color:#91f0ec;font-weight:700;font-size:11px;transition:.18s}
+.newChatButton:hover{background:#1a4651;border-color:#70e4e8}
+.newChatButton:disabled{opacity:.45;cursor:not-allowed}
+.sidebarHistory{margin-top:18px;min-height:100px;max-height:36vh;display:flex;flex-direction:column;overflow:hidden;border-top:1px solid #1e2d39;padding-top:12px}
+.historyHeading{display:flex;align-items:center;justify-content:space-between;padding:0 7px 9px;color:#71899a;font:9px 'DM Mono';letter-spacing:1px}
+.historyHeading span{display:flex;align-items:center;gap:7px}
+.historyHeading small{color:#83dfe3}
+.historyItems{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#294c59 transparent}
+.historyItem{display:flex;align-items:center;gap:3px;margin:2px 0;border:1px solid transparent;border-radius:6px}
+.historyItem.selected{background:#142b36;border-color:#294b57}
+.historyOpen{display:flex;align-items:center;gap:7px;min-width:0;flex:1;padding:8px 6px;border:0;background:transparent;color:#9eafbd;text-align:left;font-size:10px}
+.historyOpen span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.historyOpen:hover{color:#a4f1ed}
+.deleteConversation{display:grid;place-items:center;flex-shrink:0;width:27px;height:27px;margin-right:3px;border:0;border-radius:5px;background:transparent;color:#71899a;opacity:.65}
+.deleteConversation:hover{background:#45242b;color:#ff9ba5;opacity:1}
+.deleteConversation:disabled,.historyOpen:disabled{opacity:.4;cursor:not-allowed}
+.voiceToggle{margin-top:9px}
+.processingTrack{height:3px;max-width:260px;margin-top:10px;overflow:hidden;border-radius:4px;background:#223642}
+.processingTrack span{display:block;width:38%;height:100%;border-radius:4px;background:linear-gradient(90deg,#54cbd2,#9af2e8);animation:atlas-progress 1.5s ease-in-out infinite alternate}
+@keyframes atlas-progress{from{transform:translateX(-15%)}to{transform:translateX(170%)}}
+@media(max-width:800px){
+ .newChatButton{font-size:0;padding:11px 0;margin:-16px 0 20px}
+ .newChatButton svg{width:18px;height:18px}
+ .sidebarHistory{max-height:30vh}
+ .historyHeading{justify-content:center;padding-left:0;padding-right:0}
+ .historyHeading span{font-size:0}
+ .historyHeading svg{width:17px;height:17px}
+ .historyHeading small,.historyOpen span,.deleteConversation{display:none}
+ .historyItem{justify-content:center}
+ .historyOpen{justify-content:center;padding:9px 0}
+}
