@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     const body = await request.json() as { messages?: Msg[] };
     const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
     if (!messages.length || messages.some(m => !m || !["user","assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 8000)) return NextResponse.json({ error: "Mensagens inválidas." }, { status: 400 });
+    if (!allowRequest(request)) return NextResponse.json({ error: "Muitas mensagens em pouco tempo. Aguarde um minuto e tente novamente." }, { status: 429 });
     const key = process.env.GEMINI_API_KEY;
     if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
     const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
             contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
             generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: "low" } }
           }),
-          signal: AbortSignal.timeout(25000)
+          signal: AbortSignal.timeout(model === modelsToTry[0] ? 60000 : 35000)
         });
         if (response.ok) break;
         console.error("ATLAS Gemini provider error:", model, response.status);
@@ -76,9 +77,12 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error("ATLAS Gemini request failed:", model, error instanceof Error ? error.name : "unknown");
         response = undefined;
+        // A timeout on the primary model is not an HTTP provider error; stop here
+        // instead of stacking another full timeout and leaving the user waiting.
+        break;
       }
     }
-    if (!response) return NextResponse.json({ error: "O Google Gemini demorou demais para responder. Aguarde alguns segundos e tente novamente." }, { status: 504 });
+    if (!response) return NextResponse.json({ error: "O Google Gemini excedeu o tempo de resposta de 60 segundos. Tente novamente; se continuar, verifique a disponibilidade e a cota da API no Google AI Studio." }, { status: 504 });
     if (!response.ok) {
       let providerCode = "";
       try {
