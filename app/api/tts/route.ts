@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { cleanTextForSpeech } from "@/lib/speech-text";
 
 export const runtime = "nodejs";
 
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
-const MAX_REQUESTS_PER_WINDOW = 8;
+const MAX_REQUESTS_PER_WINDOW = 12;
+const AUDIO_CACHE_TTL_MS = 10 * 60_000;
+const audioCache = new Map<string, { audio: Uint8Array; createdAt: number }>();
 
 function allowRequest(request: Request) {
   const now = Date.now();
@@ -41,6 +44,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Texto inválido. O limite é de 4.096 caracteres." }, { status: 400 });
     }
 
+    const speechText = cleanTextForSpeech(body.text);
+    if (!speechText) return NextResponse.json({ error: "Não há texto para leitura após remover a formatação." }, { status: 400 });
+    const cacheKey = createHash("sha256").update(speechText).digest("hex");
+    const cached = audioCache.get(cacheKey);
+    if (cached && Date.now() - cached.createdAt < AUDIO_CACHE_TTL_MS) {
+      return new Response(cached.audio.buffer.slice(cached.audio.byteOffset, cached.audio.byteOffset + cached.audio.byteLength) as ArrayBuffer, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff", "X-ATLAS-TTS-Cache": "HIT" } });
+    }
+    if (cached) audioCache.delete(cacheKey);
+
     const piperUrl = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
     const piperToken = process.env.PIPER_API_TOKEN?.trim();
     if (!piperUrl || !piperToken) {
@@ -61,7 +73,7 @@ export async function POST(request: Request) {
           Authorization: `Bearer ${piperToken}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text: cleanTextForSpeech(body.text) }),
+        body: JSON.stringify({ text: speechText }),
         signal: AbortSignal.timeout(100000)
       });
     } catch (error) {
@@ -83,7 +95,7 @@ export async function POST(request: Request) {
             Authorization: `Bearer ${piperToken}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ text: body.text.trim() }),
+          body: JSON.stringify({ text: speechText }),
           signal: AbortSignal.timeout(100000)
         });
         piperResponse = retryResponse;
@@ -111,6 +123,13 @@ export async function POST(request: Request) {
           error: "O Piper está sem autenticação ou o modelo de voz não está disponível. Confira /health no serviço Piper."
         }, { status: 503 });
       }
+      if (piperResponse.status === 429) {
+        const retryAfter = piperResponse.headers.get("retry-after") || "15";
+        return NextResponse.json(
+          { error: "O serviço Piper atingiu o limite temporário de solicitações. A resposta escrita continua disponível; a voz alternativa do navegador será utilizada. Aguarde antes de solicitar outro áudio." },
+          { status: 429, headers: { "Retry-After": retryAfter } }
+        );
+      }
       if (piperResponse.status === 504) {
         return NextResponse.json({
           error: "O Piper excedeu o tempo de geração. Tente uma frase menor ou aguarde o serviço terminar de iniciar."
@@ -125,10 +144,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "O Piper respondeu sem um arquivo de áudio válido." }, { status: 502 });
     }
 
-    return new Response(await piperResponse.arrayBuffer(), {
+    const audio = new Uint8Array(await piperResponse.arrayBuffer());
+    audioCache.set(cacheKey, { audio, createdAt: Date.now() });
+    if (audioCache.size > 30) {
+      const oldestKey = audioCache.keys().next().value;
+      if (oldestKey) audioCache.delete(oldestKey);
+    }
+
+    return new Response(audio, {
       headers: {
         "Content-Type": "audio/wav",
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, max-age=600",
+        "X-ATLAS-TTS-Cache": "MISS",
         "X-Content-Type-Options": "nosniff"
       }
     });
