@@ -136,7 +136,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível gerar a resposta.");
       const answer = String(data.reply || "O modelo não retornou uma resposta.");
-      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, messages: [...nextHistory, { role: "assistant", content: answer }].slice(-80), updatedAt: Date.now() } : c));
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, messages: [...nextHistory, { role: "assistant" as const, content: answer }].slice(-80), updatedAt: Date.now() } : c));
       if (voice) {
         try {
           window.speechSynthesis?.cancel(); audioRef.current?.pause();
