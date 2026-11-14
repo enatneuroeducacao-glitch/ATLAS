@@ -11,6 +11,12 @@ const MAX_REQUESTS = 10;
 const CACHE_TTL = 10 * 60_000;
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
 
+function toResponseBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 function allowRequest(request: Request) {
   const now = Date.now();
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -76,7 +82,7 @@ export async function POST(request: Request) {
     const key = createHash("sha256").update(speechText).digest("hex");
     const cached = cache.get(key);
     if (cached && Date.now() - cached.createdAt < CACHE_TTL) {
-      return new Response(cached.audio, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "cache" } });
+      return new Response(toResponseBuffer(cached.audio), { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "cache" } });
     }
     if (cached) cache.delete(key);
 
@@ -114,7 +120,7 @@ export async function POST(request: Request) {
               const oldest = cache.keys().next().value;
               if (oldest) cache.delete(oldest);
             }
-            return new Response(bytes, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "gemini-neural" } });
+            return new Response(toResponseBuffer(bytes), { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "gemini-neural" } });
           }
           console.error("ATLAS Gemini TTS returned no audio payload");
         } else {
@@ -130,7 +136,7 @@ export async function POST(request: Request) {
     const piper = await piperFallback(speechText);
     if (piper) {
       const bytes = new Uint8Array(await piper.arrayBuffer());
-      return new Response(bytes, { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=300", "X-ATLAS-Voice": "piper-fallback" } });
+      return new Response(toResponseBuffer(bytes), { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=300", "X-ATLAS-Voice": "piper-fallback" } });
     }
     return NextResponse.json({
       error: "A voz neural gratuita está temporariamente indisponível. O texto da resposta foi preservado; tente reproduzir novamente mais tarde."
