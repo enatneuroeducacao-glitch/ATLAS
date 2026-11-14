@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, Activity, CheckCircle2, BookOpen, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, Volume2, VolumeX, Home } from "lucide-react";
+import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, Volume2, VolumeX, Home } from "lucide-react";
 
 export default function Home() {
   const [text, setText] = useState("");
