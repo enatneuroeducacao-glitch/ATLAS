@@ -153,7 +153,8 @@ export default function Home() {
     } catch (error) {
       const messageError = error instanceof Error ? error.message : "Falha ao acessar o servidor.";
       const friendly = messageError.includes("timed out") || messageError.includes("Timeout") || messageError.includes("abort") ? "A resposta está demorando além do esperado. Tente novamente em alguns instantes." : messageError;
-      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, messages: [...nextHistory, { role: "assistant", content: friendly }].slice(-80), updatedAt: Date.now() } : c));
+      const errorMessage: Message = { role: "assistant", content: friendly };
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, messages: [...nextHistory, errorMessage].slice(-80), updatedAt: Date.now() } : c));
     } finally {
       if (requestTimer.current) clearTimeout(requestTimer.current);
       setLoading(false); setSlowRequest(false);
