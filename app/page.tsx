@@ -124,7 +124,7 @@ export default function Home() {
     if (!conversationId) { const fresh = newConversation(); setConversations(prev => [fresh, ...prev]); setActiveId(fresh.id); conversationId = fresh.id; }
     const message = text.trim();
     const existing = conversations.find(c => c.id === conversationId);
-    const nextHistory: Message[] = [...(existing?.messages || []), { role: "user", content: message }].slice(-80);
+    const nextHistory: Message[] = [...(existing?.messages || []), { role: "user" as const, content: message }].slice(-80);
     setText(""); setLoading(true); setSlowRequest(false);
     setConversations(prev => {
       const base = prev.some(c => c.id === conversationId) ? prev : [{ id: conversationId, title: "Nova conversa", messages: [], updatedAt: Date.now() }, ...prev];
