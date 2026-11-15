@@ -27,6 +27,7 @@ export default function VideoStudio(){
  const videoUrlRef=useRef("");
  const recorderRef=useRef<MediaRecorder|null>(null);
  const finishPlaybackRef=useRef<(()=>void)|null>(null);
+ const stopRequestedRef=useRef(false);
  const enatLogoRef=useRef<HTMLImageElement|null>(null);
  const neuroLogoRef=useRef<HTMLImageElement|null>(null);
  useEffect(()=>{
@@ -96,7 +97,7 @@ export default function VideoStudio(){
   const audio=audioRef.current,canvas=canvasRef.current;
   if(!audio||!canvas||!audioUrl){setError("Gere a narração antes de exportar.");return;}
   if(!("MediaRecorder" in window)||!canvas.captureStream){setError("Este navegador não oferece gravação de vídeo compatível.");return;}
-  setRecording(true);setError("");setStatus("Preparando visualização de frequência...");
+  setRecording(true);stopRequestedRef.current=false;setError("");setStatus("Preparando visualização de frequência...");
   let stream:MediaStream|undefined;
   try{
    let context=audioContextRef.current;
@@ -129,9 +130,17 @@ export default function VideoStudio(){
    const render=()=>{draw(ctx,analyser,w,h,style,performance.now());if(recorderRef.current&&recorderRef.current.state!=="inactive")animationRef.current=requestAnimationFrame(render);};
    draw(ctx,analyser,w,h,style,0);recorder.start(1000);render();setStatus("Gravando vídeo sincronizado com o áudio · "+formatTime(audio.duration));
    await audio.play();
-   await new Promise<void>(resolve=>{finishPlaybackRef.current=resolve;audio.onended=()=>resolve();audio.onerror=()=>resolve();});
+   await new Promise<void>(resolve=>{
+    finishPlaybackRef.current=resolve;
+    audio.onended=()=>resolve();audio.onerror=()=>resolve();
+    // Também atende ao clique em "Parar" feito durante a inicialização do player.
+    if(stopRequestedRef.current)resolve();
+   });
    finishPlaybackRef.current=null;
-   cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());recorder.stop();
+   cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());
+   // O MediaRecorder só pode ser finalizado uma vez. O botão Parar apenas solicita
+   // o encerramento; este ponto gera o arquivo e libera o botão de download.
+   if(recorder.state!=="inactive")recorder.stop();
    const blob=await completed;
    if(!blob.size)throw new Error("O arquivo de vídeo ficou vazio. Tente gerar novamente.");
    const url=URL.createObjectURL(blob);
@@ -162,9 +171,10 @@ export default function VideoStudio(){
  function stopVideo(){
   const audio=audioRef.current,recorder=recorderRef.current;
   if(!recorder||recorder.state==="inactive")return;
-  if(audio){audio.pause();audio.onended=null;}
+  stopRequestedRef.current=true;
+  if(audio)audio.pause();
   finishPlaybackRef.current?.();
-  cancelAnimationFrame(animationRef.current);recorder.stop();setStatus("Finalizando arquivo para download...");
+  setStatus("Finalizando arquivo para liberar o download...");
  }
  return <section className="videoStudio audioVisualStudio">
   <header className="videoStudioHeading"><div className="videoStudioIcon"><AudioLines size={25}/></div><div><span>ATLAS IA</span><h2>Estúdio de frequência sonora</h2><p>Transforme a narração em um vídeo futurista sincronizado com o áudio.</p></div></header>
