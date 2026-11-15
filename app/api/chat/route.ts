@@ -51,8 +51,13 @@ BASE DE CONHECIMENTO ENAT:
 ${ENAT_KNOWLEDGE}`;
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { messages?: unknown };
-    if (!Array.isArray(body.messages)) {
+    let body: { messages?: unknown } | null;
+    try {
+      body = await request.json() as { messages?: unknown };
+    } catch {
+      return NextResponse.json({ error: "A solicitação não contém um JSON válido. Atualize a página e tente novamente." }, { status: 400 });
+    }
+    if (!body || typeof body !== "object" || !Array.isArray(body.messages)) {
       return NextResponse.json({ error: "O histórico da conversa está em formato inválido. Inicie uma nova conversa e tente novamente." }, { status: 400 });
     }
 
