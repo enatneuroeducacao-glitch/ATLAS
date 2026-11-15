@@ -1,8 +1,9 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, House, Plus, Trash2, Clock3 } from "lucide-react";
+import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, House, Plus, Trash2, Clock3, Film } from "lucide-react";
 import { cleanTextForSpeech } from "@/lib/speech-text";
 import AudioStudio from "@/components/AudioStudio";
+import VideoStudio from "@/components/VideoStudio";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Conversation = { id: string; title: string; messages: Message[]; updatedAt: number };
@@ -194,6 +195,7 @@ export default function Home() {
       <button type="button" className="navItem" onClick={() => navigate("quiz", "Crie um simulado de trânsito com 10 questões de múltipla escolha, gabarito comentado e nível de dificuldade progressivo. Informe o tema: [tema].")}><ClipboardList size={17}/> Criar simulado</button>
       <button type="button" className="navItem" onClick={() => navigate("law", "Explique a legislação de trânsito aplicável ao seguinte tema. Identifique a norma, artigo, vigência e fonte oficial atualizada: [tema].")}><Scale size={17}/> Legislação</button>
       <button type="button" className={`navItem ${activeMenu === "studio" ? "active" : ""}`} onClick={() => setActiveMenu("studio")}><AudioLines size={17}/> Estúdio de áudio</button>
+      <button type="button" className={`navItem ${activeMenu === "video" ? "active" : ""}`} onClick={() => setActiveMenu("video")}><Film size={17}/> Estúdio de vídeo</button>
       <button type="button" className={`navItem ${activeMenu === "risk" ? "active" : ""}`} onClick={() => navigate("risk", "Analise esta situação de trânsito sob a ótica da segurança viária: perigos, riscos, fatores humanos, usuários vulneráveis e conduta preventiva. Situação: [descreva].")}><ShieldAlert size={17}/> Análise de risco</button>
       <div className="sidebarHistory" id="atlas-history">
         <div className="historyHeading"><span><History size={13}/> CONVERSAS</span><small>{conversations.length}</small></div>
@@ -209,7 +211,7 @@ export default function Home() {
       <header className="topbar">Workspace <span>{serviceStatus === "ready" ? "● Sistema operacional" : serviceStatus === "error" ? "● Verificar conexão" : "● Verificando sistema…"}</span></header>
       <div className="content">
         <section className="welcomeBar"><div><div className="eyebrow">ATLAS II <span>/ INSTRUTOR INTELIGENTE</span></div><h1>Conhecimento que <span>protege vidas.</span></h1><p>Trânsito, legislação, neuroeducação e segurança viária em um só lugar.</p></div><div className="welcomeOrb"><AudioLines size={27}/></div></section>
-        {activeMenu === "studio" ? <AudioStudio/> : <section className="chat" id="atlas-chat">
+        {activeMenu === "studio" ? <AudioStudio/> : activeMenu === "video" ? <VideoStudio/> : <section className="chat" id="atlas-chat">
           <header><AudioLines/><div><b>{active?.title || "Nova conversa"}</b><small>Instrutor Inteligente · Trânsito, legislação, aulas e neuroeducação.</small></div><span>{loading ? "● PROCESSANDO" : "● ONLINE"}</span></header>
           <div className="conversation" id="atlas-conversation" ref={conversationRef} aria-live="polite">
             {history.length === 0 ? <div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS II <small>INSTRUTOR INTELIGENTE</small></b><p>{welcome}</p></div></div> : history.map((item, index) => <div className="answer" key={index}><div className="botIcon">{item.role === "assistant" ? <Bot/> : <span>V</span>}</div><div><b>{item.role === "assistant" ? "ATLAS" : "VOCÊ"} <small>{item.role === "assistant" ? "ASSISTENTE" : "MENSAGEM"}</small></b><p>{item.content}</p></div></div>)}
