@@ -1,58 +1,110 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Pause, Play, Square } from "lucide-react";
+import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Eye, Zap, Play, Film } from "lucide-react";
 
 type VisualStyle = "wave" | "equalizer" | "radial";
+type ProductionMode = "download" | "preview";
 const MAX_SCRIPT = 10000;
+const FPS = 30;
 
 export default function VideoStudio(){
  const [script,setScript]=useState("");
  const [audioUrl,setAudioUrl]=useState("");
- const [videoUrl,setVideoUrl]=useState(""); const [videoExt,setVideoExt]=useState("webm");
+ const [videoUrl,setVideoUrl]=useState("");
+ const [videoExt,setVideoExt]=useState("mp4");
  const [busy,setBusy]=useState(false);
- const [recording,setRecording]=useState(false);
- const [paused,setPaused]=useState(false);
+ const [rendering,setRendering]=useState(false);
+ const [progress,setProgress]=useState(0);
  const [error,setError]=useState("");
  const [status,setStatus]=useState("");
  const [style,setStyle]=useState<VisualStyle>("wave");
  const [format,setFormat]=useState<"vertical"|"horizontal">("vertical");
+ const [mode,setMode]=useState<ProductionMode>("download");
  const [duration,setDuration]=useState(0);
- const audioRef=useRef<HTMLAudioElement|null>(null);
  const canvasRef=useRef<HTMLCanvasElement|null>(null);
- const audioContextRef=useRef<AudioContext|null>(null);
- const sourceRef=useRef<MediaElementAudioSourceNode|null>(null);
- const analyserRef=useRef<AnalyserNode|null>(null);
- const destinationRef=useRef<MediaStreamAudioDestinationNode|null>(null);
- const animationRef=useRef<number>(0);
  const videoUrlRef=useRef("");
- const recorderRef=useRef<MediaRecorder|null>(null);
- const finishPlaybackRef=useRef<(()=>void)|null>(null);
- const stopRequestedRef=useRef(false);
  const enatLogoRef=useRef<HTMLImageElement|null>(null);
  const neuroLogoRef=useRef<HTMLImageElement|null>(null);
+
  useEffect(()=>{
   const enat=new Image();enat.src="/logos/enat-logo.png";enat.onload=()=>{enatLogoRef.current=enat;};
   const neuro=new Image();neuro.src="/logos/neurociencia-aplicada-transito.jpeg";neuro.onload=()=>{neuroLogoRef.current=neuro;};
  },[]);
- useEffect(()=>()=>{cancelAnimationFrame(animationRef.current);if(audioUrl)URL.revokeObjectURL(audioUrl);if(videoUrlRef.current)URL.revokeObjectURL(videoUrlRef.current);audioContextRef.current?.close();},[]);
+ useEffect(()=>()=>{if(videoUrlRef.current)URL.revokeObjectURL(videoUrlRef.current);},[]);
+
+ function formatTime(value:number){
+  if(!Number.isFinite(value))return "--:--";
+  const n=Math.max(0,Math.floor(value));
+  return Math.floor(n/60)+":"+String(n%60).padStart(2,"0");
+ }
+ function clearVideo(){
+  setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current="";return "";});
+  setProgress(0);
+ }
  async function generateAudio():Promise<string|null>{
-  if(!script.trim()||busy)return null;
+  if(!script.trim()||busy||rendering)return null;
   setBusy(true);setError("");setStatus("Gerando narração com a voz do ATLAS...");
   try{
    const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:script.trim()}),signal:AbortSignal.timeout(110000)});
    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Não foi possível gerar a narração.");}
    const blob=await r.blob();if(!blob.type.startsWith("audio/"))throw new Error("O serviço não retornou áudio válido.");
-   const url=URL.createObjectURL(blob);const probe=new Audio(url);
+   const url=URL.createObjectURL(blob);
+   const probe=new Audio(url);
    const seconds=await new Promise<number>((resolve,reject)=>{probe.onloadedmetadata=()=>resolve(probe.duration);probe.onerror=()=>reject(new Error("Não foi possível ler a duração do áudio."));});
-   if(audioUrl)URL.revokeObjectURL(audioUrl);
-   setAudioUrl(url);setDuration(seconds);setStatus("Narração pronta · "+formatTime(seconds)+". O vídeo acompanhará toda a duração do áudio.");
-   setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current="";return "";});
+   setAudioUrl(url);setDuration(seconds);clearVideo();
+   setStatus("Narração pronta · "+formatTime(seconds)+". Escolha o modo de produção.");
    return url;
   }catch(e){setError(e instanceof Error?e.message:"Falha ao gerar áudio.");setStatus("");return null;}
   finally{setBusy(false);}
  }
- function formatTime(value:number){if(!Number.isFinite(value))return "--:--";const n=Math.max(0,Math.floor(value));return Math.floor(n/60)+":"+String(n%60).padStart(2,"0");}
- function draw(ctx:CanvasRenderingContext2D,analyser:AnalyserNode,w:number,h:number,mode:VisualStyle,time:number){
+
+ function createOfflineAnalyser(audioBuffer:AudioBuffer,time:number):AnalyserNode{
+  const size=512,bins=size/2,channelCount=audioBuffer.numberOfChannels;
+  const channels=Array.from({length:channelCount},(_,i)=>audioBuffer.getChannelData(i));
+  const center=Math.floor(time*audioBuffer.sampleRate);
+  const real=new Float64Array(size),imag=new Float64Array(size),timeData=new Uint8Array(bins),frequencyData=new Uint8Array(bins);
+  for(let i=0;i<size;i++){
+   const index=center+i-size/2;
+   let sample=0;
+   if(index>=0&&index<audioBuffer.length){for(let ch=0;ch<channelCount;ch++)sample+=channels[ch][index]||0;sample/=channelCount;}
+   const window=.5-.5*Math.cos(2*Math.PI*i/(size-1));
+   real[i]=sample*window;
+   if(i%2===0)timeData[i/2]=Math.max(0,Math.min(255,Math.round(128+sample*112)));
+  }
+  // FFT radix-2 para extrair a frequência real da narração sem reproduzir o áudio.
+  let j=0;
+  for(let i=1;i<size;i++){
+   let bit=size>>1;
+   while(j&bit){j^=bit;bit>>=1;}
+   j^=bit;
+   if(i<j){[real[i],real[j]]=[real[j],real[i]];[imag[i],imag[j]]=[imag[j],imag[i]];}
+  }
+  for(let length=2;length<=size;length<<=1){
+   const angle=-2*Math.PI/length,stepReal=Math.cos(angle),stepImag=Math.sin(angle);
+   for(let start=0;start<size;start+=length){
+    let wr=1,wi=0;
+    for(let k=0;k<length/2;k++){
+     const even=start+k,odd=even+length/2;
+     const tr=wr*real[odd]-wi*imag[odd],ti=wr*imag[odd]+wi*real[odd];
+     real[odd]=real[even]-tr;imag[odd]=imag[even]-ti;
+     real[even]+=tr;imag[even]+=ti;
+     const nextWr=wr*stepReal-wi*stepImag;wi=wr*stepImag+wi*stepReal;wr=nextWr;
+    }
+   }
+  }
+  for(let i=0;i<bins;i++){
+   const magnitude=Math.sqrt(real[i]*real[i]+imag[i]*imag[i])/size;
+   frequencyData[i]=Math.max(0,Math.min(255,Math.round(magnitude*18*255)));
+  }
+  const analyser={
+   frequencyBinCount:bins,
+   getByteTimeDomainData:(target:Uint8Array)=>target.set(timeData.subarray(0,target.length)),
+   getByteFrequencyData:(target:Uint8Array)=>target.set(frequencyData.subarray(0,target.length))
+  };
+  return analyser as unknown as AnalyserNode;
+ }
+
+ function draw(ctx:CanvasRenderingContext2D,analyser:AnalyserNode,w:number,h:number,visual:VisualStyle,time:number){
   const buffer=new Uint8Array(analyser.frequencyBinCount);analyser.getByteTimeDomainData(buffer);
   const freq=new Uint8Array(analyser.frequencyBinCount);analyser.getByteFrequencyData(freq);
   ctx.fillStyle="#050b14";ctx.fillRect(0,0,w,h);
@@ -61,7 +113,6 @@ export default function VideoStudio(){
   ctx.strokeStyle="rgba(68,207,226,.12)";ctx.lineWidth=1;
   for(let i=1;i<8;i++){ctx.beginPath();ctx.moveTo(w*i/8,0);ctx.lineTo(w*i/8,h);ctx.stroke();}
   for(let i=1;i<14;i++){ctx.beginPath();ctx.moveTo(0,h*i/14);ctx.lineTo(w,h*i/14);ctx.stroke();}
-  // Logomarcas originais no cabeçalho superior, fora da área da frequência.
   const drawLogo=(img:HTMLImageElement|null,x:number,y:number,maxW:number,maxH:number)=>{
    if(!img||!img.complete||!img.naturalWidth)return;
    const scale=Math.min(maxW/img.naturalWidth,maxH/img.naturalHeight);
@@ -70,139 +121,144 @@ export default function VideoStudio(){
   };
   drawLogo(neuroLogoRef.current,w*.27,h*.105,w*.28,h*.19);
   drawLogo(enatLogoRef.current,w*.73,h*.105,w*.24,h*.19);
-  ctx.textAlign="center";
-  ctx.save();
-  ctx.shadowColor="rgba(31,226,238,.7)";ctx.shadowBlur=Math.max(12,w*.018);
-  ctx.fillStyle="#a8fbff";ctx.font="700 "+Math.round(w*.034)+"px Arial";
-  ctx.fillText("ATLAS IA",w/2,h*.225);
-  ctx.restore();
-  ctx.strokeStyle="rgba(70,221,232,.28)";ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(w*.34,h*.275);ctx.lineTo(w*.66,h*.275);ctx.stroke();
+  ctx.textAlign="center";ctx.save();ctx.shadowColor="rgba(31,226,238,.7)";ctx.shadowBlur=Math.max(12,w*.018);
+  ctx.fillStyle="#a8fbff";ctx.font="700 "+Math.round(w*.034)+"px Arial";ctx.fillText("ATLAS IA",w/2,h*.225);ctx.restore();
+  ctx.strokeStyle="rgba(70,221,232,.28)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(w*.34,h*.275);ctx.lineTo(w*.66,h*.275);ctx.stroke();
   const cx=w/2,cy=h*.57,base=Math.min(w,h)*.17;
-  if(mode==="wave"){
+  if(visual==="wave"){
    ctx.beginPath();ctx.lineWidth=Math.max(2,w*.003);ctx.strokeStyle="#64edf0";ctx.shadowColor="#28dbe7";ctx.shadowBlur=18;
    for(let i=0;i<buffer.length;i++){const x=i/(buffer.length-1)*w*.82+w*.09;const y=cy+(buffer[i]-128)/128*h*.22;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();ctx.shadowBlur=0;
-   ctx.beginPath();ctx.strokeStyle="rgba(71,174,224,.6)";ctx.lineWidth=1;for(let i=0;i<buffer.length;i++){const x=i/(buffer.length-1)*w*.82+w*.09;const y=cy+(buffer[i]-128)/128*h*.12+Math.sin(time/500+i*.04)*2;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();
-  }else if(mode==="equalizer"){
+   ctx.beginPath();ctx.strokeStyle="rgba(71,174,224,.6)";ctx.lineWidth=1;
+   for(let i=0;i<buffer.length;i++){const x=i/(buffer.length-1)*w*.82+w*.09;const y=cy+(buffer[i]-128)/128*h*.12+Math.sin(time*2+i*.04)*2;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();
+  }else if(visual==="equalizer"){
    const count=64,gap=w*.004,bw=(w*.78-gap*(count-1))/count;
    for(let i=0;i<count;i++){const value=freq[Math.floor(i*freq.length/count)]/255;const bh=Math.max(4,value*h*.35);const x=w*.11+i*(bw+gap);const grad=ctx.createLinearGradient(0,cy-bh,0,cy+bh);grad.addColorStop(0,"#8cfbfa");grad.addColorStop(1,"#1678b5");ctx.fillStyle=grad;ctx.shadowColor="#27cde0";ctx.shadowBlur=8;ctx.fillRect(x,cy-bh/2,bw,bh);}ctx.shadowBlur=0;
   }else{
-   const count=112;ctx.save();ctx.translate(cx,cy);ctx.rotate(time/12000);
+   const count=112;ctx.save();ctx.translate(cx,cy);ctx.rotate(time/12);
    for(let i=0;i<count;i++){const angle=i/count*Math.PI*2;const value=freq[Math.floor(i*freq.length/count)]/255;const inner=base*.68;const outer=inner+base*(.15+value*.72);ctx.beginPath();ctx.moveTo(Math.cos(angle)*inner,Math.sin(angle)*inner);ctx.lineTo(Math.cos(angle)*outer,Math.sin(angle)*outer);ctx.strokeStyle=i%4===0?"#9afafa":"#28b9d3";ctx.lineWidth=Math.max(2,w*.0025);ctx.shadowColor="#23dce8";ctx.shadowBlur=10;ctx.stroke();}
    ctx.shadowBlur=0;ctx.beginPath();ctx.arc(0,0,base*.58,0,Math.PI*2);ctx.strokeStyle="rgba(100,237,240,.5)";ctx.lineWidth=2;ctx.stroke();ctx.restore();
   }
-  // Área inferior e laterais permanecem livres: somente a frequência visual.
  }
- async function exportVideo(){
-  const audio=audioRef.current,canvas=canvasRef.current;
-  if(!audio||!canvas||!audioUrl){setError("Gere a narração antes de exportar.");return;}
-  if(!("MediaRecorder" in window)||!canvas.captureStream){setError("Este navegador não oferece gravação de vídeo compatível.");return;}
-  setRecording(true);stopRequestedRef.current=false;setError("");setStatus("Preparando visualização de frequência...");
-  let stream:MediaStream|undefined;
+
+ async function renderOfflineVideo(sourceUrl:string,productionMode:ProductionMode){
+  if(rendering)return;
+  const canvas=canvasRef.current;
+  if(!canvas){setError("A área de renderização não está disponível.");return;}
+  setRendering(true);setProgress(0);setError("");setStatus("Preparando renderização offline...");
+  let outputInstance:import("mediabunny").Output|undefined;
   try{
-   let context=audioContextRef.current;
-   if(!context){
-    context=new AudioContext();audioContextRef.current=context;
-    const source=context.createMediaElementSource(audio);sourceRef.current=source;
-    const analyser=context.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.82;analyserRef.current=analyser;
-    const destination=context.createMediaStreamDestination();destinationRef.current=destination;
-    source.connect(analyser);analyser.connect(context.destination);analyser.connect(destination);
+   const media=await import("mediabunny");
+   const bytes=await (await fetch(sourceUrl)).arrayBuffer();
+   const decodeContext=new AudioContext();
+   let audioBuffer:AudioBuffer;
+   try{audioBuffer=await decodeContext.decodeAudioData(bytes.slice(0));}
+   finally{await decodeContext.close();}
+   const width=720,height=format==="vertical"?1280:405;
+   canvas.width=width;canvas.height=height;
+   const ctx=canvas.getContext("2d");if(!ctx)throw new Error("Não foi possível preparar a tela de renderização.");
+   const mp4Format=new media.Mp4OutputFormat();
+   let selectedFormat:InstanceType<typeof media.Mp4OutputFormat>|InstanceType<typeof media.WebMOutputFormat>=mp4Format;
+   let videoCodec=await media.getFirstEncodableVideoCodec(mp4Format.getSupportedVideoCodecs(),{width,height});
+   let audioCodec=await media.getFirstEncodableAudioCodec(mp4Format.getSupportedAudioCodecs());
+   let extension="mp4";
+   if(!videoCodec||!audioCodec){
+    const webmFormat=new media.WebMOutputFormat();
+    const webmVideo=await media.getFirstEncodableVideoCodec(webmFormat.getSupportedVideoCodecs(),{width,height});
+    const webmAudio=await media.getFirstEncodableAudioCodec(webmFormat.getSupportedAudioCodecs());
+    if(!webmVideo||!webmAudio)throw new Error("Este navegador não oferece codificação de vídeo e áudio compatível. Atualize o Microsoft Edge e tente novamente.");
+    selectedFormat=webmFormat;videoCodec=webmVideo;audioCodec=webmAudio;extension="webm";
    }
-   await context.resume();
-   audio.muted=false;audio.volume=1;
-   const w=format==="vertical"?720:1280,h=format==="vertical"?1280:720;canvas.width=w;canvas.height=h;
-   const analyser=analyserRef.current!,ctx=canvas.getContext("2d");if(!ctx)throw new Error("Não foi possível preparar a visualização.");
-   const videoStream=canvas.captureStream(30);
-   // Captura a saída real do elemento de áudio, evitando depender de uma rota de mixagem separada.
-   const audioWithCaptureStream=audio as HTMLAudioElement & { captureStream?: () => MediaStream };
-   const audioStream=typeof audioWithCaptureStream.captureStream==="function"?audioWithCaptureStream.captureStream():destinationRef.current?.stream;
-   const audioTracks=audioStream?.getAudioTracks()??[];
-   if(!audioTracks.length)throw new Error("O navegador não disponibilizou a faixa de áudio para a gravação. Tente novamente no Microsoft Edge atualizado.");
-   stream=new MediaStream([...videoStream.getVideoTracks(),...audioTracks]);
-   const mime=["video/mp4;codecs=h264,aac","video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus"].find(t=>MediaRecorder.isTypeSupported(t));
-   if(!mime)throw new Error("Formato de gravação não suportado neste navegador.");
-   if(stream.getAudioTracks().length===0)throw new Error("A gravação foi interrompida: o vídeo está sem faixa de áudio.");
-   const recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000,audioBitsPerSecond:192000});const chunks:BlobPart[]=[];
-   recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-   recorderRef.current=recorder;
-   const completed=new Promise<Blob>((resolve,reject)=>{recorder.onerror=()=>reject(new Error("Falha durante a gravação."));recorder.onstop=()=>resolve(new Blob(chunks,{type:mime}));});
-   audio.currentTime=0;audio.onended=null;audio.onerror=null;
-   const render=()=>{draw(ctx,analyser,w,h,style,performance.now());if(recorderRef.current&&recorderRef.current.state!=="inactive")animationRef.current=requestAnimationFrame(render);};
-   draw(ctx,analyser,w,h,style,0);recorder.start(1000);render();setStatus("Gravando vídeo sincronizado com o áudio · "+formatTime(audio.duration));
-   await audio.play();
-   await new Promise<void>(resolve=>{
-    finishPlaybackRef.current=resolve;
-    audio.onended=()=>resolve();audio.onerror=()=>resolve();
-    // Também atende ao clique em "Parar" feito durante a inicialização do player.
-    if(stopRequestedRef.current)resolve();
-   });
-   finishPlaybackRef.current=null;
-   cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());
-   // O MediaRecorder só pode ser finalizado uma vez. O botão Parar apenas solicita
-   // o encerramento; este ponto gera o arquivo e libera o botão de download.
-   if(recorder.state!=="inactive")recorder.stop();
-   const blob=await completed;
-   if(!blob.size)throw new Error("O arquivo de vídeo ficou vazio. Tente gerar novamente.");
+   const target=new media.BufferTarget();
+   outputInstance=new media.Output({format:selectedFormat,target});
+   const videoSource=new media.CanvasSource(canvas,{codec:videoCodec,quality:new media.Quality({bitrate:1_700_000})});
+   const audioSource=new media.AudioBufferSource({codec:audioCodec,quality:new media.Quality({bitrate:128_000})});
+   outputInstance.addVideoTrack(videoSource,{frameRate:FPS});
+   outputInstance.addAudioTrack(audioSource);
+   outputInstance.setMetadataTags({title:"ATLAS IA — ENAT",artist:"ENAT — Ensino Neuroeducacional Aplicado ao Trânsito"});
+   await outputInstance.start();
+   const audioTask=audioSource.add(audioBuffer);
+   const totalFrames=Math.max(1,Math.ceil(audioBuffer.duration*FPS));
+   for(let frame=0;frame<totalFrames;frame++){
+    const timestamp=frame/FPS;
+    const analyser=createOfflineAnalyser(audioBuffer,Math.min(timestamp,audioBuffer.duration));
+    draw(ctx,analyser,width,height,style,timestamp);
+    await videoSource.add(timestamp,Math.min(1/FPS,Math.max(0,audioBuffer.duration-timestamp)));
+    if(frame%12===0||frame===totalFrames-1){
+     const percent=Math.min(99,Math.round(((frame+1)/totalFrames)*100));
+     setProgress(percent);setStatus("Renderizando sem reproduzir o áudio · "+percent+"% · quadro "+(frame+1)+" de "+totalFrames);
+     await new Promise<void>(resolve=>setTimeout(resolve,0));
+    }
+   }
+   videoSource.close();
+   await audioTask;
+   audioSource.close();
+   setStatus("Finalizando arquivo MP4...");
+   await outputInstance.finalize();
+   const encoded=target.buffer;
+   if(!encoded||!encoded.byteLength)throw new Error("A renderização terminou sem produzir um arquivo válido.");
+   const blob=new Blob([encoded],{type:extension==="mp4"?"video/mp4":"video/webm"});
    const url=URL.createObjectURL(blob);
-   const verification=new Audio(url);
-   await new Promise<void>((resolve,reject)=>{verification.onloadedmetadata=()=>resolve();verification.onerror=()=>reject(new Error("Não foi possível validar o arquivo de vídeo gerado."));});
-   if(!Number.isFinite(verification.duration)||verification.duration<=0){URL.revokeObjectURL(url);throw new Error("O vídeo gerado não contém uma duração válida.");}
-   setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
-   setStatus("Vídeo finalizado com faixa de áudio · "+formatTime(verification.duration)+" · "+(blob.type.includes("mp4")?"MP4":"WebM"));
-  }catch(e){setError(e instanceof Error?e.message:"Não foi possível exportar o vídeo.");setStatus("");}
-  finally{stream?.getTracks().forEach(t=>t.stop());recorderRef.current=null;setRecording(false);setPaused(false);}
+   clearVideo();videoUrlRef.current=url;setVideoUrl(url);setVideoExt(extension);setProgress(100);
+   if(productionMode==="download"){
+    const link=document.createElement("a");link.href=url;link.download="ENAT-ATLAS-video-"+Date.now()+"."+extension;
+    document.body.appendChild(link);link.click();link.remove();
+    setStatus("Vídeo renderizado offline e download iniciado · "+formatTime(audioBuffer.duration)+" · "+extension.toUpperCase());
+   }else{
+    setStatus("Pré-visualização pronta · "+formatTime(audioBuffer.duration)+". Assista ao vídeo e use Baixar vídeo quando desejar.");
+   }
+  }catch(e){
+   setError(e instanceof Error?e.message:"Não foi possível renderizar o vídeo.");
+   setStatus("");
+  }finally{
+   setRendering(false);
+  }
  }
- async function generateVideoWithAudio(){
-  const generated=await generateAudio();
-  if(!generated)return;
-  await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
-  await exportVideo();
+
+ async function startProduction(){
+  if(busy||rendering)return;
+  let currentAudio=audioUrl;
+  if(!currentAudio){currentAudio=await generateAudio()||"";}
+  if(!currentAudio)return;
+  await renderOfflineVideo(currentAudio,mode);
  }
- function pauseVideo(){
-  const audio=audioRef.current,recorder=recorderRef.current;
-  if(!audio||!recorder||recorder.state!=="recording")return;
-  audio.pause();recorder.pause();setPaused(true);setStatus("Gravação pausada.");
- }
- function resumeVideo(){
-  const audio=audioRef.current,recorder=recorderRef.current;
-  if(!audio||!recorder||recorder.state!=="paused")return;
-  void audio.play();recorder.resume();setPaused(false);setStatus("Gravação retomada.");
- }
- function stopVideo(){
-  const audio=audioRef.current,recorder=recorderRef.current;
-  if(!recorder||recorder.state==="inactive")return;
-  stopRequestedRef.current=true;
-  if(audio)audio.pause();
-  finishPlaybackRef.current?.();
-  setStatus("Finalizando arquivo para liberar o download...");
- }
+ function chooseStyle(next:VisualStyle){setStyle(next);clearVideo();}
+ function chooseFormat(next:"vertical"|"horizontal"){setFormat(next);clearVideo();}
+ function chooseMode(next:ProductionMode){setMode(next);}
+
  return <section className="videoStudio audioVisualStudio">
   <header className="videoStudioHeading"><div className="videoStudioIcon"><AudioLines size={25}/></div><div><span>ATLAS IA</span><h2>Estúdio de frequência sonora</h2><p>Transforme a narração em um vídeo futurista sincronizado com o áudio.</p></div></header>
   <div className="audioStudioControls">
-   <label>Formato do vídeo</label><div className="videoFormat"><button type="button" className={format==="vertical"?"selected":""} onClick={()=>setFormat("vertical")}>Vertical · Reels</button><button type="button" className={format==="horizontal"?"selected":""} onClick={()=>setFormat("horizontal")}>Horizontal · YouTube</button></div>
+   <label>Formato do vídeo</label><div className="videoFormat"><button type="button" className={format==="vertical"?"selected":""} onClick={()=>chooseFormat("vertical")}>Vertical · Reels</button><button type="button" className={format==="horizontal"?"selected":""} onClick={()=>chooseFormat("horizontal")}>Horizontal · YouTube</button></div>
    <label>Visualização sonora</label><div className="audioStyleChoices">
-    <button type="button" className={style==="wave"?"selected":""} onClick={()=>setStyle("wave")}><Waves size={17}/> Onda sonora</button>
-    <button type="button" className={style==="equalizer"?"selected":""} onClick={()=>setStyle("equalizer")}><BarChart3 size={17}/> Equalizador</button>
-    <button type="button" className={style==="radial"?"selected":""} onClick={()=>setStyle("radial")}><CircleDot size={17}/> Espectro circular</button>
+    <button type="button" className={style==="wave"?"selected":""} onClick={()=>chooseStyle("wave")}><Waves size={17}/> Onda sonora</button>
+    <button type="button" className={style==="equalizer"?"selected":""} onClick={()=>chooseStyle("equalizer")}><BarChart3 size={17}/> Equalizador</button>
+    <button type="button" className={style==="radial"?"selected":""} onClick={()=>chooseStyle("radial")}><CircleDot size={17}/> Espectro circular</button>
    </div>
   </div>
   <div className="audioStudioGrid">
    <div className="videoEditor">
     <div className="videoSectionTitle"><b>1. Texto para narração</b><small>{script.length.toLocaleString("pt-BR")} / {MAX_SCRIPT}</small></div>
-    <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>setScript(e.target.value.slice(0,MAX_SCRIPT))} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>
-    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||recording} onClick={generateVideoWithAudio}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando áudio e preparando vídeo...</>:<><Radio size={15}/> Gerar vídeo com áudio</>}</button>
-    {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio ref={audioRef} className="videoAudioPreview" controls src={audioUrl}/></div>}
+    <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>{setScript(e.target.value.slice(0,MAX_SCRIPT));setAudioUrl("");clearVideo();}} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>
+    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={startProduction}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando narração...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração e vídeo</>}</button>
+    {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio className="videoAudioPreview" controls src={audioUrl}/></div>}
+    <div className="videoProductionModes">
+     <div className="videoSectionTitle"><b>2. Modo de produção</b><small>Escolha como deseja concluir</small></div>
+     <div className="videoModeChoices">
+      <button type="button" className={mode==="download"?"selected":""} aria-pressed={mode==="download"} disabled={rendering||busy} onClick={()=>chooseMode("download")}><Zap size={19}/><span><b>Gerar e baixar</b><small>Renderiza o vídeo completo em segundo plano e inicia o download ao terminar.</small></span></button>
+      <button type="button" className={mode==="preview"?"selected":""} aria-pressed={mode==="preview"} disabled={rendering||busy} onClick={()=>chooseMode("preview")}><Eye size={19}/><span><b>Pré-visualizar</b><small>Gera o vídeo sem reprodução em tempo real para assistir antes de baixar.</small></span></button>
+     </div>
+    </div>
+    <button className="videoPrimary videoStartProduction" type="button" disabled={!script.trim()||busy||rendering} onClick={startProduction}>{rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando · {progress}%</>:mode==="download"?<><Download size={15}/> Iniciar geração e baixar</>:<><Play size={15}/> Gerar pré-visualização</>}</button>
+    {(rendering||progress>0)&&<div className="videoRenderProgress" role="status"><div><b>{rendering?"Renderizando vídeo offline":"Renderização concluída"}</b><strong>{progress}%</strong></div><progress value={progress} max={100}/><small>{status}</small></div>}
     <p className="videoStatus" role="status">{status}</p>{error&&<p className="studioError" role="alert">{error}</p>}
-    {recording&&<div className="audioStyleChoices audioRecordingControls">
-     {paused?<button type="button" onClick={resumeVideo}><Play size={16}/> Continuar</button>:<button type="button" onClick={pauseVideo}><Pause size={16}/> Pausar</button>}
-     <button type="button" onClick={stopVideo}><Square size={15}/> Parar e finalizar</button>
-    </div>}
-    {!recording&&audioUrl&&<button className="videoPrimary videoExport" type="button" disabled={busy} onClick={exportVideo}><RefreshCw size={15}/> Gerar vídeo novamente</button>}
-    <p className="audioDurationNote">A duração do vídeo acompanha integralmente o áudio. Não há limite artificial de 2 minutos. Gravações longas dependem da memória disponível no navegador.</p>
+    <p className="audioDurationNote">A renderização offline não exige ouvir a narração até o fim. O tempo de processamento depende da duração, da memória e da capacidade de codificação do navegador.</p>
    </div>
-   <div className="videoPreviewPanel"><div className={"audioVisualPreview "+format}><canvas ref={canvasRef}/></div>
-    {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"ENAT-audio-visual-"+Date.now()+"."+videoExt}><Download size={16}/> Baixar vídeo</a><small>Formato final indicado pelo navegador durante a gravação.</small></div>}
-    <div className="videoFreeNote">Sem pessoas, fotografias, cenas ou APIs de vídeo. A animação é gerada a partir das frequências reais da narração com Web Audio API e Canvas. A exportação utiliza a capacidade de gravação do navegador.</div>
+   <div className="videoPreviewPanel">
+    <div className={"audioVisualPreview "+format}>
+     {videoUrl?<video key={videoUrl} className="videoOfflineResult" controls playsInline preload="metadata" src={videoUrl}/>:<canvas ref={canvasRef}/>}
+    </div>
+    {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"ENAT-ATLAS-video-"+Date.now()+"."+videoExt}><Download size={16}/> Baixar vídeo ({videoExt.toUpperCase()})</a><small>{mode==="preview"?"Assista à prévia antes de baixar.":"Arquivo finalizado e pronto para salvar."}</small></div>}
+    <div className="videoFreeNote">O vídeo é renderizado quadro a quadro com WebCodecs, usando a análise das frequências reais do áudio. A narração original é incorporada ao arquivo, sem precisar reproduzi-la em tempo real. Arquivos longos dependem da memória disponível no navegador.</div>
    </div>
   </div>
  </section>;
