@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AudioLines, Download, Mic2, Pause, Play, RefreshCw, Volume2 } from "lucide-react";
+import { AudioLines, Download, Mic2, RefreshCw, Volume2 } from "lucide-react";
 
-const MAX_CHARS = 4096;
+const MAX_CHARS = 10000;
 
 export default function AudioStudio() {
   const [script, setScript] = useState("");
@@ -27,7 +27,7 @@ export default function AudioStudio() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: value }),
-        signal: AbortSignal.timeout(65000)
+        signal: AbortSignal.timeout(110000)
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -53,7 +53,7 @@ export default function AudioStudio() {
       <div className="studioEditor">
         <label htmlFor="studio-script">Texto para narração</label>
         <textarea id="studio-script" value={script} onChange={e => setScript(e.target.value.slice(0, MAX_CHARS))} placeholder="Cole ou escreva o texto que deseja transformar em áudio..." maxLength={MAX_CHARS}/>
-        <div className="studioMeta"><span>Português brasileiro · Voz neural atual do ATLAS</span><span>{script.length.toLocaleString("pt-BR")} / {MAX_CHARS.toLocaleString("pt-BR")}</span></div>
+        <div className="studioMeta"><span>Português brasileiro · Voz neural atual do ATLAS</span><span>{script.length.toLocaleString("pt-BR")} / {MAX_CHARS.toLocaleString("pt-BR")} caracteres</span></div>
         <button type="button" className="studioGenerate" onClick={generate} disabled={!script.trim() || busy}>
           {busy ? <><RefreshCw size={16} className="studioSpin"/> Gerando narração...</> : <><Mic2 size={16}/> Gerar áudio</>}
         </button>
