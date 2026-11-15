@@ -8,6 +8,7 @@ const buckets = new Map<string, { count: number; resetAt: number }>();
 const cache = new Map<string, { audio: Uint8Array; createdAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
+const MAX_TTS_CHARS = 10000;
 const CACHE_TTL = 10 * 60_000;
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
 
@@ -73,8 +74,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Limite temporário de voz atingido. Aguarde um minuto." }, { status: 429 });
     }
     const body = await request.json() as { text?: unknown };
-    if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 4096) {
-      return NextResponse.json({ error: "Texto inválido. O limite é de 4.096 caracteres." }, { status: 400 });
+    if (typeof body.text !== "string" || !body.text.trim() || body.text.length > MAX_TTS_CHARS) {
+      return NextResponse.json({ error: "Texto inválido. O limite é de 10.000 caracteres." }, { status: 400 });
     }
     const speechText = cleanTextForSpeech(body.text);
     if (!speechText) return NextResponse.json({ error: "Não há texto para leitura." }, { status: 400 });
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
             response_format: { type: "audio", mime_type: "audio/wav", sample_rate: 24000 },
             generation_config: { speech_config: [{ voice: process.env.GEMINI_TTS_VOICE || "Orus" }] }
           }),
-          signal: AbortSignal.timeout(55000)
+          signal: AbortSignal.timeout(90000)
         });
         if (response.ok) {
           const data = await response.json();
