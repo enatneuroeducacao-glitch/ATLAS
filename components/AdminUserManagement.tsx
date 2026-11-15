@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type CSSProperties } from "react";
 
 type AdminUser = {
   id: string;
@@ -71,8 +71,8 @@ export default function AdminUserManagement({ currentUserId }: { currentUserId: 
   }, [activeSearch]);
 
   useEffect(() => {
-    void loadUsers(0, "");
-  }, [loadUsers]);
+    void loadUsers(0, activeSearch);
+  }, [activeSearch, loadUsers]);
 
   async function changeRole(user: AdminUser, role: "user" | "admin") {
     if (user.id === currentUserId) return;
@@ -119,10 +119,9 @@ export default function AdminUserManagement({ currentUserId }: { currentUserId: 
     }
   }
 
-  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setActiveSearch(search.trim());
-    void loadUsers(0, search.trim());
   }
 
   return (
@@ -206,15 +205,15 @@ export default function AdminUserManagement({ currentUserId }: { currentUserId: 
   );
 }
 
-const buttonStyle: React.CSSProperties = {
+const buttonStyle: CSSProperties = {
   border: "1px solid #45617f", borderRadius: 8, padding: "9px 12px",
   background: "#1a3551", color: "#fff", cursor: "pointer",
 };
 
-const smallButtonStyle: React.CSSProperties = {
+const smallButtonStyle: CSSProperties = {
   ...buttonStyle, padding: "7px 9px", fontSize: 12,
 };
 
-const cellStyle: React.CSSProperties = {
+const cellStyle: CSSProperties = {
   padding: "12px 10px", verticalAlign: "top",
 };
