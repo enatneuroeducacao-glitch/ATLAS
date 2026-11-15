@@ -23,6 +23,7 @@ const signUp = read("app/auth/sign-up/page.tsx");
 const forgotPassword = read("app/auth/forgot-password/page.tsx");
 const resetPassword = read("app/auth/reset-password/page.tsx");
 const adminPage = read("app/admin/page.tsx");
+const adminUsers = read("components/AdminUserManagement.tsx");
 const authControls = read("components/AuthControls.tsx");
 
 const checks = [
@@ -38,7 +39,7 @@ const checks = [
   ["APIs de chat e voz exigem sessão", chat.includes("auth.getSession()") && tts.includes("auth.getSession()")],
   ["interface principal continua usando o endpoint de voz", page.includes('fetch("/api/tts"')],
   ["reconhecimento de voz do navegador continua presente", page.includes("SpeechRecognition") && page.includes("webkitSpeechRecognition")],
-  ["histórico atual e chave legada continuam preservados", page.includes('atlas-conversations-v2') && page.includes('atlas-conversation-v1')],
+  ["histórico atual e chave legada continuam preservados", page.includes("atlas-conversations-v2") && page.includes("atlas-conversation-v1")],
   ["Estúdio de áudio continua integrado", page.includes("<AudioStudio") && audioStudio.includes('fetch("/api/tts"')],
   ["Estúdio de vídeo continua integrado", page.includes("<VideoStudio")],
   ["Estúdio de vídeo mantém salvamento automático local", videoStudio.includes("atlas.video-studio.script.v1") && videoStudio.includes("localStorage.setItem")],
@@ -52,9 +53,11 @@ const checks = [
   ["TTS mantém fallback Piper", tts.includes("piperFallback") && tts.includes("PIPER_TTS_URL") && tts.includes("PIPER_API_TOKEN")],
   ["limpeza do texto falado continua isolada", tts.includes("cleanTextForSpeech") && speech.includes("export function cleanTextForSpeech")],
   ["health check continua sem expor segredos", health.includes("aiConfigured") && health.includes("voiceConfigured") && !health.includes("GEMINI_API_KEY:")],
-  ["área administrativa exige sessão e papel admin no servidor", adminPage.includes("auth.getSession()") && adminPage.includes("user.role !== \"admin\"") && adminPage.includes("redirect(\"/auth/sign-in\")")],
-  ["atalho administrativo só aparece para papel admin", authControls.includes("user.role === \"admin\"") && authControls.includes('href="/admin"')],
-  ["área administrativa não expõe gestão de usuários ainda não suportada", adminPage.includes("não permite adicionar o plugin administrativo") && adminPage.includes("Gestão de usuários")],
+  ["área administrativa exige sessão e papel admin no servidor", adminPage.includes("auth.getSession()") && adminPage.includes('user.role !== "admin"') && adminPage.includes('redirect("/auth/sign-in")')],
+  ["atalho administrativo só aparece para papel admin", authControls.includes('user.role === "admin"') && authControls.includes('href="/admin"')],
+  ["gestão administrativa usa endpoints oficiais do Neon Auth", adminUsers.includes("list-users?") && adminUsers.includes('"set-role"') && adminUsers.includes('"ban-user"') && adminUsers.includes('"unban-user"')],
+  ["gestão administrativa não permite bloquear ou alterar a própria conta", adminUsers.includes("user.id === currentUserId") && adminUsers.includes("disabled={isSelf || busy}")),
+  ["gestão administrativa oferece pesquisa e paginação", adminUsers.includes("searchValue") && adminUsers.includes("PAGE_SIZE") && adminUsers.includes("Próxima")],
 ];
 
 let failures = 0;
@@ -67,5 +70,5 @@ for (const [label, passed] of checks) {
   }
 }
 
-process.stdout.write(`\\nResultado: ${checks.length - failures}/${checks.length} verificações aprovadas.\\n`);
+process.stdout.write(`\nResultado: ${checks.length - failures}/${checks.length} verificações aprovadas.\n`);
 if (failures) process.exitCode = 1;
