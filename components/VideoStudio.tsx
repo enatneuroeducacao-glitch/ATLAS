@@ -8,7 +8,7 @@ const MAX_SCRIPT = 10000;
 export default function VideoStudio(){
  const [script,setScript]=useState("");
  const [audioUrl,setAudioUrl]=useState("");
- const [videoUrl,setVideoUrl]=useState("");
+ const [videoUrl,setVideoUrl]=useState(""); const [videoExt,setVideoExt]=useState("webm");
  const [busy,setBusy]=useState(false);
  const [recording,setRecording]=useState(false);
  const [error,setError]=useState("");
@@ -93,7 +93,7 @@ export default function VideoStudio(){
    await audio.play();
    await new Promise<void>(resolve=>{audio.onended=()=>resolve();audio.onerror=()=>resolve();});
    cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());recorder.stop();
-   const blob=await completed;const url=URL.createObjectURL(blob);setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
+   const blob=await completed;const url=URL.createObjectURL(blob);setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
    setStatus("Vídeo finalizado · "+formatTime(audio.duration)+" · "+(blob.type.includes("mp4")?"MP4":"WebM"));
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível exportar o vídeo.");setStatus("");}
   finally{stream?.getTracks().forEach(t=>t.stop());setRecording(false);}
@@ -119,7 +119,7 @@ export default function VideoStudio(){
     <p className="audioDurationNote">A duração do vídeo acompanha integralmente o áudio. Não há limite artificial de 2 minutos. Gravações longas dependem da memória disponível no navegador.</p>
    </div>
    <div className="videoPreviewPanel"><div className={"audioVisualPreview "+format}><canvas ref={canvasRef}/><div className="audioPreviewOverlay"><AudioLines size={23}/><b>ATLAS II · ENAT</b><span>VISUALIZAÇÃO DE FREQUÊNCIA</span></div></div>
-    {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"ENAT-audio-visual-"+Date.now()+"."+(videoUrl.startsWith("blob:")?"webm":"webm")}><Download size={16}/> Baixar vídeo</a><small>Formato final indicado pelo navegador durante a gravação.</small></div>}
+    {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"ENAT-audio-visual-"+Date.now()+"."+videoExt}><Download size={16}/> Baixar vídeo</a><small>Formato final indicado pelo navegador durante a gravação.</small></div>}
     <div className="videoFreeNote">Sem pessoas, fotografias, cenas ou APIs de vídeo. A animação é gerada a partir das frequências reais da narração com Web Audio API e Canvas. A exportação utiliza a capacidade de gravação do navegador.</div>
    </div>
   </div>
