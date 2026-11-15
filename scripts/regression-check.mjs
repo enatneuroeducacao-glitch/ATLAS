@@ -14,9 +14,21 @@ const speech = read("lib/speech-text.ts");
 const audioStudio = read("components/AudioStudio.tsx");
 const videoStudio = read("components/VideoStudio.tsx");
 const knowledge = read("lib/enat-knowledge.ts");
+const authServer = read("lib/auth/server.ts");
+const authClient = read("lib/auth/client.ts");
+const authRoute = read("app/api/auth/[...path]/route.ts");
+const authProxy = read("proxy.ts");
+const signIn = read("app/auth/sign-in/page.tsx");
+const signUp = read("app/auth/sign-up/page.tsx");
 
 const checks = [
   ["interface principal continua usando o endpoint de chat", page.includes('fetch("/api/chat"')],
+  ["Neon Auth está configurado no servidor", authServer.includes("createNeonAuth") && authServer.includes("NEON_AUTH_BASE_URL")],
+  ["cliente usa o wrapper oficial Neon Auth", authClient.includes("createAuthClient") && authClient.includes("@neon/auth/next")],
+  ["proxy de autenticação expõe os métodos HTTP necessários", authRoute.includes("auth.handler()") && ["GET","POST","PUT","PATCH","DELETE"].every(method => authRoute.includes(method))],
+  ["rotas privadas exigem sessão", authProxy.includes("auth.middleware") && authProxy.includes('loginUrl: "/auth/sign-in"')],
+  ["cadastro e login com Google estão disponíveis", signIn.includes('provider: "google"') && signUp.includes("signUp.email")],
+  ["APIs de chat e voz exigem sessão", chat.includes("auth.getSession()") && tts.includes("auth.getSession()")],
   ["interface principal continua usando o endpoint de voz", page.includes('fetch("/api/tts"')],
   ["reconhecimento de voz do navegador continua presente", page.includes("SpeechRecognition") && page.includes("webkitSpeechRecognition")],
   ["histórico atual e chave legada continuam preservados", page.includes('atlas-conversations-v2') && page.includes('atlas-conversation-v1')],
