@@ -24,6 +24,12 @@ export default function VideoStudio(){
  const destinationRef=useRef<MediaStreamAudioDestinationNode|null>(null);
  const animationRef=useRef<number>(0);
  const videoUrlRef=useRef("");
+ const enatLogoRef=useRef<HTMLImageElement|null>(null);
+ const neuroLogoRef=useRef<HTMLImageElement|null>(null);
+ useEffect(()=>{
+  const enat=new Image();enat.src="/logos/enat-logo.png";enat.onload=()=>{enatLogoRef.current=enat;};
+  const neuro=new Image();neuro.src="/logos/neurociencia-aplicada-transito.jpeg";neuro.onload=()=>{neuroLogoRef.current=neuro;};
+ },[]);
  useEffect(()=>()=>{cancelAnimationFrame(animationRef.current);if(audioUrl)URL.revokeObjectURL(audioUrl);if(videoUrlRef.current)URL.revokeObjectURL(videoUrlRef.current);audioContextRef.current?.close();},[]);
  async function generateAudio(){
   if(!script.trim()||busy)return;
@@ -50,9 +56,24 @@ export default function VideoStudio(){
   ctx.strokeStyle="rgba(68,207,226,.12)";ctx.lineWidth=1;
   for(let i=1;i<8;i++){ctx.beginPath();ctx.moveTo(w*i/8,0);ctx.lineTo(w*i/8,h);ctx.stroke();}
   for(let i=1;i<14;i++){ctx.beginPath();ctx.moveTo(0,h*i/14);ctx.lineTo(w,h*i/14);ctx.stroke();}
-  ctx.textAlign="center";ctx.fillStyle="#75e8ed";ctx.font="600 "+Math.round(w*.022)+"px Arial";ctx.fillText("ENAT  /  ATLAS II",w/2,h*.12);
-  ctx.fillStyle="rgba(200,235,245,.55)";ctx.font="400 "+Math.round(w*.013)+"px Arial";ctx.fillText("AUDIO SIGNAL VISUALIZATION",w/2,h*.15);
-  const cx=w/2,cy=h*.49,base=Math.min(w,h)*.17;
+  // Logomarcas originais no cabeçalho superior, fora da área da frequência.
+  const drawLogo=(img:HTMLImageElement|null,x:number,y:number,maxW:number,maxH:number)=>{
+   if(!img||!img.complete||!img.naturalWidth)return;
+   const scale=Math.min(maxW/img.naturalWidth,maxH/img.naturalHeight);
+   const dw=img.naturalWidth*scale,dh=img.naturalHeight*scale;
+   ctx.drawImage(img,x-dw/2,y-dh/2,dw,dh);
+  };
+  drawLogo(neuroLogoRef.current,w*.27,h*.105,w*.20,h*.15);
+  drawLogo(enatLogoRef.current,w*.73,h*.105,w*.16,h*.15);
+  ctx.textAlign="center";
+  ctx.save();
+  ctx.shadowColor="rgba(31,226,238,.7)";ctx.shadowBlur=Math.max(12,w*.018);
+  ctx.fillStyle="#a8fbff";ctx.font="700 "+Math.round(w*.034)+"px Arial";
+  ctx.fillText("ATLAS IA",w/2,h*.225);
+  ctx.restore();
+  ctx.strokeStyle="rgba(70,221,232,.28)";ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(w*.34,h*.275);ctx.lineTo(w*.66,h*.275);ctx.stroke();
+  const cx=w/2,cy=h*.57,base=Math.min(w,h)*.17;
   if(mode==="wave"){
    ctx.beginPath();ctx.lineWidth=Math.max(2,w*.003);ctx.strokeStyle="#64edf0";ctx.shadowColor="#28dbe7";ctx.shadowBlur=18;
    for(let i=0;i<buffer.length;i++){const x=i/(buffer.length-1)*w*.82+w*.09;const y=cy+(buffer[i]-128)/128*h*.22;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();ctx.shadowBlur=0;
@@ -65,9 +86,7 @@ export default function VideoStudio(){
    for(let i=0;i<count;i++){const angle=i/count*Math.PI*2;const value=freq[Math.floor(i*freq.length/count)]/255;const inner=base*.68;const outer=inner+base*(.15+value*.72);ctx.beginPath();ctx.moveTo(Math.cos(angle)*inner,Math.sin(angle)*inner);ctx.lineTo(Math.cos(angle)*outer,Math.sin(angle)*outer);ctx.strokeStyle=i%4===0?"#9afafa":"#28b9d3";ctx.lineWidth=Math.max(2,w*.0025);ctx.shadowColor="#23dce8";ctx.shadowBlur=10;ctx.stroke();}
    ctx.shadowBlur=0;ctx.beginPath();ctx.arc(0,0,base*.58,0,Math.PI*2);ctx.strokeStyle="rgba(100,237,240,.5)";ctx.lineWidth=2;ctx.stroke();ctx.restore();
   }
-  ctx.fillStyle="rgba(153,202,218,.8)";ctx.font="500 "+Math.round(w*.016)+"px Arial";ctx.fillText("FREQUÊNCIA  •  AMPLITUDE  •  TEMPO",w/2,h*.82);
-  ctx.fillStyle="rgba(91,224,230,.75)";ctx.fillRect(w*.1,h*.88,w*.8,2);
-  ctx.fillStyle="rgba(180,214,224,.65)";ctx.font="400 "+Math.round(w*.012)+"px Arial";ctx.fillText("ENSINO NEUROEDUCACIONAL APLICADO AO TRÂNSITO",w/2,h*.92);
+  // Área inferior e laterais permanecem livres: somente a frequência visual.
  }
  async function exportVideo(){
   const audio=audioRef.current,canvas=canvasRef.current;
@@ -99,7 +118,7 @@ export default function VideoStudio(){
   finally{stream?.getTracks().forEach(t=>t.stop());setRecording(false);}
  }
  return <section className="videoStudio audioVisualStudio">
-  <header className="videoStudioHeading"><div className="videoStudioIcon"><AudioLines size={25}/></div><div><span>ENAT / ATLAS II · AUDIOVISUAL</span><h2>Estúdio de frequência sonora</h2><p>Transforme a narração em um vídeo futurista sincronizado com o áudio.</p></div></header>
+  <header className="videoStudioHeading"><div className="videoStudioIcon"><AudioLines size={25}/></div><div><span>ATLAS IA</span><h2>Estúdio de frequência sonora</h2><p>Transforme a narração em um vídeo futurista sincronizado com o áudio.</p></div></header>
   <div className="audioStudioControls">
    <label>Formato do vídeo</label><div className="videoFormat"><button type="button" className={format==="vertical"?"selected":""} onClick={()=>setFormat("vertical")}>Vertical · Reels</button><button type="button" className={format==="horizontal"?"selected":""} onClick={()=>setFormat("horizontal")}>Horizontal · YouTube</button></div>
    <label>Visualização sonora</label><div className="audioStyleChoices">
@@ -118,7 +137,7 @@ export default function VideoStudio(){
     <button className="videoPrimary videoExport" type="button" disabled={!audioUrl||recording||busy} onClick={exportVideo}>{recording?<><RefreshCw size={15} className="studioSpin"/> Gravando frequência...</>:<><Download size={15}/> Gerar vídeo completo</>}</button>
     <p className="audioDurationNote">A duração do vídeo acompanha integralmente o áudio. Não há limite artificial de 2 minutos. Gravações longas dependem da memória disponível no navegador.</p>
    </div>
-   <div className="videoPreviewPanel"><div className={"audioVisualPreview "+format}><canvas ref={canvasRef}/><div className="audioPreviewOverlay"><AudioLines size={23}/><b>ATLAS II · ENAT</b><span>VISUALIZAÇÃO DE FREQUÊNCIA</span></div></div>
+   <div className="videoPreviewPanel"><div className={"audioVisualPreview "+format}><canvas ref={canvasRef}/></div>
     {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"ENAT-audio-visual-"+Date.now()+"."+videoExt}><Download size={16}/> Baixar vídeo</a><small>Formato final indicado pelo navegador durante a gravação.</small></div>}
     <div className="videoFreeNote">Sem pessoas, fotografias, cenas ou APIs de vídeo. A animação é gerada a partir das frequências reais da narração com Web Audio API e Canvas. A exportação utiliza a capacidade de gravação do navegador.</div>
    </div>
