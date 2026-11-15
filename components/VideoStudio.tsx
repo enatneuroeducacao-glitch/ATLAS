@@ -4,13 +4,31 @@ import { Film, ImagePlus, Download, RefreshCw, Video, Volume2 } from "lucide-rea
 
 type Scene = { id:string; title:string; text:string; imageUrl:string; fileName:string };
 const makeScene = (n:number):Scene => ({id:String(Date.now())+"-"+n,title:"Cena "+(n+1),text:"",imageUrl:"",fileName:""});
+const MAX_SECONDS = 120;
+function escapeSvg(value:string){return value.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]||c));}
+function makeIllustration(title:string,text:string,index:number){
+ const source=(title+" "+text).toLowerCase();
+ const keywords=[["cérebro","NEUROCIÊNCIA"],["risco","PERCEPÇÃO DE RISCO"],["motorista","ATENÇÃO NO TRÂNSITO"],["pedestre","MOBILIDADE HUMANA"],["educação","APRENDIZAGEM"],["vida","PRESERVAR VIDAS"]];
+ const label=keywords.find(([key])=>source.includes(key))?.[1]||"SEGURANÇA VIÁRIA";
+ const safe=escapeSvg(label);
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1280" viewBox="0 0 720 1280"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#102f3d"/><stop offset="1" stop-color="#07111d"/></linearGradient><radialGradient id="r"><stop stop-color="#70e4e8" stop-opacity=".35"/><stop offset="1" stop-color="#70e4e8" stop-opacity="0"/></radialGradient></defs><rect width="720" height="1280" fill="url(#g)"/><circle cx="'+(360+(index%3-1)*85)+'" cy="420" r="300" fill="url(#r)"/><path d="M0 900 Q180 760 360 900 T720 900 V1280 H0Z" fill="#0d2634"/><path d="M0 1000 H720 M0 1080 H720" stroke="#70e4e8" stroke-opacity=".22" stroke-width="3"/><circle cx="360" cy="430" r="142" fill="none" stroke="#70e4e8" stroke-width="5" stroke-opacity=".7"/><circle cx="360" cy="430" r="96" fill="none" stroke="#70e4e8" stroke-width="2" stroke-opacity=".45"/><path d="M360 260 V600 M190 430 H530 M240 310 L480 550 M480 310 L240 550" stroke="#70e4e8" stroke-width="3" stroke-opacity=".55"/><text x="54" y="170" fill="#70e4e8" font-family="Arial" font-size="22" letter-spacing="5">ENAT • EDUCAÇÃO PARA A VIDA</text><text x="54" y="790" fill="#ffffff" font-family="Arial" font-size="38" font-weight="700">'+safe+'</text><text x="54" y="1210" fill="#a9c5d0" font-family="Arial" font-size="22">ATLAS II • ENSINO NEUROEDUCACIONAL</text></svg>';
+ return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+}
+function splitScript(text:string):Scene[]{
+ const sentences=text.replace(/\\s+/g," ").match(/[^.!?]+[.!?]?/g)?.map(x=>x.trim()).filter(Boolean)||[];
+ const chunks:string[]=[];let current="";
+ for(const sentence of sentences){if((current+" "+sentence).trim().length>210&&current){chunks.push(current);current=sentence;}else current=(current+" "+sentence).trim();}
+ if(current)chunks.push(current);
+ const limited=chunks.slice(0,12);
+ return limited.map((chunk,i)=>{const title=chunk.split(/[,:;]/)[0].slice(0,58).trim()||"Cena "+(i+1);return {...makeScene(i),title,text:chunk,imageUrl:makeIllustration(title,chunk,i),fileName:"Ilustração automática ENAT"};});
+}
 
 export default function VideoStudio(){
  const [format,setFormat]=useState<"vertical"|"horizontal">("vertical");
  const [scenes,setScenes]=useState<Scene[]>([makeScene(0)]);
  const [script,setScript]=useState(""); const [audioUrl,setAudioUrl]=useState("");
  const [videoUrl,setVideoUrl]=useState(""); const [videoExt,setVideoExt]=useState("webm"); const [busy,setBusy]=useState(false);
- const [recording,setRecording]=useState(false); const [error,setError]=useState(""); const [status,setStatus]=useState("");
+ const [recording,setRecording]=useState(false); const [error,setError]=useState(""); const [status,setStatus]=useState(""); const [estimatedSeconds,setEstimatedSeconds]=useState(0);
  const audioRef=useRef<HTMLAudioElement|null>(null); const canvasRef=useRef<HTMLCanvasElement|null>(null);
  const images=useRef<Map<string,HTMLImageElement>>(new Map());
  useEffect(()=>()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);if(videoUrl)URL.revokeObjectURL(videoUrl);},[]);
@@ -61,9 +79,9 @@ export default function VideoStudio(){
  const ext=videoUrl&&videoUrl.includes("mp4")?"mp4":"webm";
  return <section className="videoStudio">
   <header className="videoStudioHeading"><div className="videoStudioIcon"><Film size={24}/></div><div><span>ATLAS II / PRODUÇÃO DE CONTEÚDO</span><h2>Estúdio de vídeo</h2><p>Crie vídeos com imagens, textos e a narração atual do ATLAS, sem contratar APIs.</p></div></header>
-  <div className="videoStudioToolbar"><b>Formato:</b><button className={format==="vertical"?"selected":""} onClick={()=>setFormat("vertical")} type="button">Vertical · Reels / Shorts</button><button className={format==="horizontal"?"selected":""} onClick={()=>setFormat("horizontal")} type="button">Horizontal · YouTube</button></div>
+  <div className="videoStudioToolbar"><b>Duração máxima: 2 minutos · Preferencial: 90 segundos</b><span>Formato:</span><button className={format==="vertical"?"selected":""} onClick={()=>setFormat("vertical")} type="button">Vertical · Reels / Shorts</button><button className={format==="horizontal"?"selected":""} onClick={()=>setFormat("horizontal")} type="button">Horizontal · YouTube</button></div>
   <div className="videoStudioGrid"><div className="videoEditor">
-   <div className="videoSectionTitle"><b>1. Cenas</b><small>{scenes.length} / 12</small></div>
+   <div className="videoSectionTitle"><b>1. Cenas e ilustrações</b><small>{scenes.length} / 12</small></div>\n   <button className="videoPrimary" type="button" disabled={!script.trim()} onClick={()=>{const generated=splitScript(script);if(!generated.length){setError("Insira um roteiro para criar as cenas.");return;}setScenes(generated);setError("");setStatus(generated.length+" cenas e ilustrações criadas automaticamente. Revise antes de gerar a narração.");}}>Criar cenas e imagens automaticamente</button>
    {scenes.map((s,i)=><article className="videoScene" key={s.id}><div className="videoSceneTop"><b>Cena {i+1}</b>{scenes.length>1&&<button type="button" onClick={()=>setScenes(old=>old.filter(x=>x.id!==s.id))}>Remover</button>}</div>
     <input value={s.title} maxLength={90} onChange={e=>patch(s.id,{title:e.target.value})} placeholder="Título da cena"/>
     <textarea value={s.text} maxLength={500} onChange={e=>patch(s.id,{text:e.target.value})} placeholder="Texto que aparecerá na tela..." rows={2}/>
@@ -71,15 +89,15 @@ export default function VideoStudio(){
     {s.imageUrl&&<img className="videoSceneThumb" src={s.imageUrl} alt={"Imagem da cena "+(i+1)}/>}
    </article>)}
    <button className="videoAddScene" type="button" disabled={scenes.length>=12} onClick={()=>setScenes(old=>[...old,makeScene(old.length)])}>+ Adicionar cena</button>
-   <div className="videoSectionTitle videoNarrationTitle"><b>2. Roteiro da narração</b><small>{script.length.toLocaleString("pt-BR")} / 10.000</small></div>
+   <div className="videoSectionTitle videoNarrationTitle"><b>2. Roteiro da narração</b><small>{script.length.toLocaleString("pt-BR")} caracteres · máximo recomendado: 400 palavras</small></div>
    <textarea className="videoNarration" rows={7} maxLength={10000} value={script} onChange={e=>setScript(e.target.value.slice(0,10000))} placeholder="Cole o roteiro que será narrado..."/>
    <button className="videoPrimary" type="button" disabled={!script.trim()||busy} onClick={generateAudio}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando...</>:<><Volume2 size={15}/> Gerar narração</>}</button>
-   {audioUrl&&<audio ref={audioRef} className="videoAudioPreview" controls src={audioUrl}/>}
+   {audioUrl&&<><audio ref={audioRef} className="videoAudioPreview" controls src={audioUrl}/><small className="videoDuration">Duração da narração: {Math.ceil(estimatedSeconds)}s / 120s</small></> }
    <p className="videoStatus" role="status">{status}</p>{error&&<p className="studioError" role="alert">{error}</p>}
    <button className="videoPrimary videoExport" type="button" disabled={!audioUrl||recording} onClick={exportVideo}>{recording?<><RefreshCw size={15} className="studioSpin"/> Montando vídeo...</>:<><Video size={15}/> Exportar vídeo</>}</button>
   </div><div className="videoPreviewPanel"><div className={"videoPreview "+format}><canvas ref={canvasRef}/>{!videoUrl&&<div className="videoPreviewPlaceholder"><Film size={30}/><b>Prévia do vídeo</b><span>O resultado será composto com suas cenas e narração.</span></div>}</div>
    {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"atlas-video-"+Date.now()+"."+videoExt}><Download size={16}/> Baixar vídeo</a><small>O formato depende do suporte do navegador: MP4 ou WebM.</small></div>}
-   <div className="videoFreeNote">Sem API de vídeo e sem custo de geração de cenas. As imagens permanecem no navegador. A narração usa o serviço de voz já existente no ATLAS. Esta versão não cria cenas cinematográficas por IA.</div>
+   <div className="videoFreeNote">As ilustrações são criadas automaticamente pelo próprio ATLAS em SVG, sem API, sem créditos e sem enviar imagens para terceiros. São artes gráficas temáticas, não fotografias nem imagens fotorrealistas geradas por IA. A narração usa o serviço de voz já existente no ATLAS.</div>
   </div></div>
  </section>;
 }
