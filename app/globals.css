@@ -227,3 +227,20 @@ textarea{min-height:42px;max-height:110px}
 .audioPreviewOverlay span{font:9px 'DM Mono';letter-spacing:2px;color:#8ab8c9}
 @media(max-width:800px){.audioStudioGrid{grid-template-columns:1fr}}
 @media(max-width:520px){.audioStyleChoices{display:grid;grid-template-columns:1fr}.audioStyleChoices button{justify-content:center}}
+
+
+/* Estúdio de vídeo: amplia a área de edição do texto de narração */
+.audioVisualStudio .videoNarration{
+ min-height:280px;
+ height:280px;
+ max-height:560px;
+ padding:14px;
+ font-size:12px;
+ line-height:1.75;
+}
+@media(max-width:800px){
+ .audioVisualStudio .videoNarration{min-height:240px;height:240px}
+}
+@media(max-width:520px){
+ .audioVisualStudio .videoNarration{min-height:220px;height:220px}
+}
