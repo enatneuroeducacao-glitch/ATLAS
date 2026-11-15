@@ -26,17 +26,6 @@ export default function SignInPage() {
     } finally { setBusy(false); }
   }
 
-  async function google() {
-    setError("");
-    setBusy(true);
-    try {
-      const result = await authClient.signIn.social({ provider: "google", callbackURL: "/" });
-      if (result.error) throw new Error(result.error.message || "Falha no acesso com Google.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Falha no acesso com Google.");
-      setBusy(false);
-    }
-  }
 
   return <main style={{minHeight:"100vh",display:"grid",placeItems:"center",background:"#07111f",color:"#eaf2ff",padding:24}}>
     <section style={{width:"min(100%,420px)",background:"#101e30",border:"1px solid #263a53",borderRadius:20,padding:32,boxShadow:"0 24px 80px #0006"}}>
@@ -49,8 +38,7 @@ export default function SignInPage() {
         {error && <p role="alert" style={{color:"#ff9c9c",fontSize:14}}>{error}</p>}
         <button disabled={busy} style={primary}>{busy?"Aguarde…":"Entrar"}</button>
       </form>
-      <div style={{display:"flex",alignItems:"center",gap:12,color:"#8299b5",fontSize:12,margin:"18px 0"}}><span style={{height:1,background:"#344a63",flex:1}}/>OU<span style={{height:1,background:"#344a63",flex:1}}/></div>
-      <button onClick={google} disabled={busy} style={secondary}>Continuar com Google</button>
+      <p style={{marginTop:14,fontSize:13}}><Link href="/auth/forgot-password" style={{color:"#7dc4ff"}}>Esqueci minha senha</Link></p>
       <p style={{marginTop:22,fontSize:14,color:"#a9bbd0"}}>Ainda não tem conta? <Link href="/auth/sign-up" style={{color:"#7dc4ff"}}>Criar cadastro</Link></p>
       <p style={{marginTop:10,fontSize:12,color:"#7f94ad"}}>A autenticação é protegida pelo Neon Auth.</p>
     </section>
@@ -59,4 +47,3 @@ export default function SignInPage() {
 
 const field = {width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #3a506b",background:"#0b1726",color:"#fff",outline:"none"} as const;
 const primary = {padding:13,border:0,borderRadius:10,background:"#2477c8",color:"#fff",fontWeight:700,cursor:"pointer"} as const;
-const secondary = {...primary,width:"100%",background:"#172b42",border:"1px solid #405875"} as const;
