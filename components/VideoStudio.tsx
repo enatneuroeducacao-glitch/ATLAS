@@ -26,6 +26,7 @@ export default function VideoStudio(){
  const animationRef=useRef<number>(0);
  const videoUrlRef=useRef("");
  const recorderRef=useRef<MediaRecorder|null>(null);
+ const finishPlaybackRef=useRef<(()=>void)|null>(null);
  const enatLogoRef=useRef<HTMLImageElement|null>(null);
  const neuroLogoRef=useRef<HTMLImageElement|null>(null);
  useEffect(()=>{
@@ -111,10 +112,11 @@ export default function VideoStudio(){
    recorderRef.current=recorder;
    const completed=new Promise<Blob>((resolve,reject)=>{recorder.onerror=()=>reject(new Error("Falha durante a gravação."));recorder.onstop=()=>resolve(new Blob(chunks,{type:mime}));});
    audio.currentTime=0;audio.onended=null;audio.onerror=null;
-   const render=()=>{draw(ctx,analyser,w,h,style,performance.now());if(!audio!.paused&&!audio!.ended)animationRef.current=requestAnimationFrame(render);};
+   const render=()=>{draw(ctx,analyser,w,h,style,performance.now());if(recorderRef.current&&recorderRef.current.state!=="inactive")animationRef.current=requestAnimationFrame(render);};
    draw(ctx,analyser,w,h,style,0);recorder.start(1000);render();setStatus("Gravando vídeo sincronizado com o áudio · "+formatTime(audio.duration));
    await audio.play();
-   await new Promise<void>(resolve=>{audio.onended=()=>resolve();audio.onerror=()=>resolve();});
+   await new Promise<void>(resolve=>{finishPlaybackRef.current=resolve;audio.onended=()=>resolve();audio.onerror=()=>resolve();});
+   finishPlaybackRef.current=null;
    cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());recorder.stop();
    const blob=await completed;const url=URL.createObjectURL(blob);setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
    setStatus("Vídeo finalizado · "+formatTime(audio.duration)+" · "+(blob.type.includes("mp4")?"MP4":"WebM"));
@@ -130,7 +132,7 @@ export default function VideoStudio(){
  function pauseVideo(){
   const audio=audioRef.current,recorder=recorderRef.current;
   if(!audio||!recorder||recorder.state!=="recording")return;
-  audio.pause();recorder.pause();cancelAnimationFrame(animationRef.current);setPaused(true);setStatus("Gravação pausada.");
+  audio.pause();recorder.pause();setPaused(true);setStatus("Gravação pausada.");
  }
  function resumeVideo(){
   const audio=audioRef.current,recorder=recorderRef.current;
@@ -141,6 +143,7 @@ export default function VideoStudio(){
   const audio=audioRef.current,recorder=recorderRef.current;
   if(!recorder||recorder.state==="inactive")return;
   if(audio){audio.pause();audio.onended=null;}
+  finishPlaybackRef.current?.();
   cancelAnimationFrame(animationRef.current);recorder.stop();setStatus("Finalizando arquivo para download...");
  }
  return <section className="videoStudio audioVisualStudio">
