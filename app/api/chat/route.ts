@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { ENAT_KNOWLEDGE } from "@/lib/enat-knowledge";
 export const runtime = "nodejs";
 type Msg = { role: "user" | "assistant"; content: string };
+function isAssistantMessage(message: Msg | undefined): boolean {
+  return message?.role === "assistant";
+}
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 15;
@@ -88,9 +91,9 @@ export async function POST(request: Request) {
     }
 
     // Gemini expects a conversation to begin with a user turn and alternate user/model turns.
-    while (normalizedMessages[0]?.role === "assistant") normalizedMessages.shift();
+    while (isAssistantMessage(normalizedMessages[0])) normalizedMessages.shift();
     const messages = normalizedMessages.slice(-MAX_HISTORY_MESSAGES);
-    while (messages[0]?.role === "assistant") messages.shift();
+    while (isAssistantMessage(messages[0])) messages.shift();
 
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       return NextResponse.json({ error: "Não foi encontrada uma mensagem nova do usuário. Envie sua pergunta novamente." }, { status: 400 });
@@ -100,7 +103,7 @@ export async function POST(request: Request) {
     while (totalCharacters > MAX_HISTORY_CHARS && messages.length > 1) {
       const removed = messages.shift()!;
       totalCharacters -= removed.content.length;
-      while (messages[0]?.role === "assistant") {
+      while (isAssistantMessage(messages[0])) {
         const skipped = messages.shift()!;
         totalCharacters -= skipped.content.length;
       }
