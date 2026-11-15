@@ -6,9 +6,12 @@ type VisualStyle = "wave" | "equalizer" | "radial";
 type ProductionMode = "download" | "preview";
 const MAX_SCRIPT = 10000;
 const FPS = 30;
+const SCRIPT_STORAGE_KEY = "atlas.video-studio.script.v1";
 
 export default function VideoStudio(){
  const [script,setScript]=useState("");
+ const [scriptRestored,setScriptRestored]=useState(false);
+ const [scriptSaveStatus,setScriptSaveStatus]=useState("Carregando rascunho...");
  const [audioUrl,setAudioUrl]=useState("");
  const [videoUrl,setVideoUrl]=useState("");
  const [videoExt,setVideoExt]=useState("mp4");
@@ -27,6 +30,24 @@ export default function VideoStudio(){
  const enatLogoRef=useRef<HTMLImageElement|null>(null);
  const neuroLogoRef=useRef<HTMLImageElement|null>(null);
 
+ useEffect(()=>{
+  try{
+   const saved=window.localStorage.getItem(SCRIPT_STORAGE_KEY);
+   if(saved!==null)setScript(saved.slice(0,MAX_SCRIPT));
+   setScriptSaveStatus(saved!==null&&saved.length>0?"Rascunho recuperado automaticamente":"Salvamento automático ativado");
+  }catch{setScriptSaveStatus("Salvamento local indisponível neste navegador");}
+  setScriptRestored(true);
+ },[]);
+ function updateScript(value:string){
+  const next=value.slice(0,MAX_SCRIPT);
+  setScript(next);
+  try{
+   if(next.length)window.localStorage.setItem(SCRIPT_STORAGE_KEY,next);
+   else window.localStorage.removeItem(SCRIPT_STORAGE_KEY);
+   setScriptSaveStatus(next.length?"Salvo automaticamente neste navegador":"Rascunho vazio");
+  }catch{setScriptSaveStatus("Não foi possível salvar neste navegador");}
+  clearAudio();clearVideo();
+ }
  useEffect(()=>{
   const enat=new Image();enat.src="/logos/enat-logo.png";enat.onload=()=>{enatLogoRef.current=enat;};
   const neuro=new Image();neuro.src="/logos/neurociencia-aplicada-transito.jpeg";neuro.onload=()=>{neuroLogoRef.current=neuro;};
@@ -244,7 +265,7 @@ export default function VideoStudio(){
   <div className="audioStudioGrid">
    <div className="videoEditor">
     <div className="videoSectionTitle"><b>1. Texto para narração</b><small>{script.length.toLocaleString("pt-BR")} / {MAX_SCRIPT}</small></div>
-    <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>{setScript(e.target.value.slice(0,MAX_SCRIPT));clearAudio();clearVideo();}} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>
+    <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>updateScript(e.target.value)} disabled={!scriptRestored} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>\n    <div className="videoScriptSaveStatus" role="status"><span className="videoScriptSaveDot"/> {scriptSaveStatus}</div>
     <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={()=>void generateAudio()}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando narração...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração</>}</button>
     {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio className="videoAudioPreview" controls src={audioUrl}/></div>}
     <div className="videoProductionModes">
