@@ -54,11 +54,11 @@ Use a base ENAT abaixo como contexto do projeto. Diferencie conceitos do projeto
 BASE DE CONHECIMENTO ENAT:
 ${ENAT_KNOWLEDGE}`;
 export async function POST(request: Request) {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Sessão necessária. Entre no ATLAS para continuar." }, { status: 401 });
-  }
   try {
+    const { data: session } = await auth.getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Sessão necessária. Entre no ATLAS para continuar." }, { status: 401 });
+    }
     let body: { messages?: unknown } | null;
     try {
       body = await request.json() as { messages?: unknown };
