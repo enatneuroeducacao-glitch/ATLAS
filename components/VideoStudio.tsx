@@ -113,7 +113,8 @@ export default function VideoStudio(){
    const analyser=analyserRef.current!,ctx=canvas.getContext("2d");if(!ctx)throw new Error("Não foi possível preparar a visualização.");
    const videoStream=canvas.captureStream(30);
    // Captura a saída real do elemento de áudio, evitando depender de uma rota de mixagem separada.
-   const audioStream=typeof audio.captureStream==="function"?audio.captureStream():destinationRef.current?.stream;
+   const audioWithCaptureStream=audio as HTMLAudioElement & { captureStream?: () => MediaStream };
+   const audioStream=typeof audioWithCaptureStream.captureStream==="function"?audioWithCaptureStream.captureStream():destinationRef.current?.stream;
    const audioTracks=audioStream?.getAudioTracks()??[];
    if(!audioTracks.length)throw new Error("O navegador não disponibilizou a faixa de áudio para a gravação. Tente novamente no Microsoft Edge atualizado.");
    stream=new MediaStream([...videoStream.getVideoTracks(),...audioTracks]);
