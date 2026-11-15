@@ -9,7 +9,7 @@ export default function VideoStudio(){
  const [format,setFormat]=useState<"vertical"|"horizontal">("vertical");
  const [scenes,setScenes]=useState<Scene[]>([makeScene(0)]);
  const [script,setScript]=useState(""); const [audioUrl,setAudioUrl]=useState("");
- const [videoUrl,setVideoUrl]=useState(""); const [busy,setBusy]=useState(false);
+ const [videoUrl,setVideoUrl]=useState(""); const [videoExt,setVideoExt]=useState("webm"); const [busy,setBusy]=useState(false);
  const [recording,setRecording]=useState(false); const [error,setError]=useState(""); const [status,setStatus]=useState("");
  const audioRef=useRef<HTMLAudioElement|null>(null); const canvasRef=useRef<HTMLCanvasElement|null>(null);
  const images=useRef<Map<string,HTMLImageElement>>(new Map());
@@ -54,7 +54,7 @@ export default function VideoStudio(){
    const render=()=>{const i=Math.min(scenes.length-1,Math.floor(audio.currentTime/per));draw(ctx,scenes[i],w,h,i);if(!audio.paused&&!audio.ended)raf=requestAnimationFrame(render);};
    draw(ctx,scenes[0],w,h,0);recorder.start(250);audio.currentTime=0;await audio.play();render();setStatus("Gravando vídeo...");
    await new Promise<void>(resolve=>{audio.onended=()=>resolve();audio.onerror=()=>resolve();});cancelAnimationFrame(raf);recorder.stop();
-   const blob=await done;const url=URL.createObjectURL(blob);setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);return url;});
+   const blob=await done;const url=URL.createObjectURL(blob);setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);return url;});
    setStatus("Vídeo pronto para baixar.");stream.getTracks().forEach(t=>t.stop());
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível exportar.");setStatus("");}finally{setRecording(false);}
  }
@@ -78,7 +78,7 @@ export default function VideoStudio(){
    <p className="videoStatus" role="status">{status}</p>{error&&<p className="studioError" role="alert">{error}</p>}
    <button className="videoPrimary videoExport" type="button" disabled={!audioUrl||recording} onClick={exportVideo}>{recording?<><RefreshCw size={15} className="studioSpin"/> Montando vídeo...</>:<><Video size={15}/> Exportar vídeo</>}</button>
   </div><div className="videoPreviewPanel"><div className={"videoPreview "+format}><canvas ref={canvasRef}/>{!videoUrl&&<div className="videoPreviewPlaceholder"><Film size={30}/><b>Prévia do vídeo</b><span>O resultado será composto com suas cenas e narração.</span></div>}</div>
-   {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"atlas-video-"+Date.now()+"."+ext}><Download size={16}/> Baixar vídeo</a><small>O formato depende do suporte do navegador: MP4 ou WebM.</small></div>}
+   {videoUrl&&<div className="videoDownloadArea"><a href={videoUrl} download={"atlas-video-"+Date.now()+"."+videoExt}><Download size={16}/> Baixar vídeo</a><small>O formato depende do suporte do navegador: MP4 ou WebM.</small></div>}
    <div className="videoFreeNote">Sem API de vídeo e sem custo de geração de cenas. As imagens permanecem no navegador. A narração usa o serviço de voz já existente no ATLAS. Esta versão não cria cenas cinematográficas por IA.</div>
   </div></div>
  </section>;
