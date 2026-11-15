@@ -27,7 +27,7 @@ const checks = [
   ["cliente usa o wrapper oficial Neon Auth", authClient.includes("createAuthClient") && authClient.includes("@neon/auth/next")],
   ["proxy de autenticação expõe os métodos HTTP necessários", authRoute.includes("auth.handler()") && ["GET","POST","PUT","PATCH","DELETE"].every(method => authRoute.includes(method))],
   ["rotas privadas exigem sessão", authProxy.includes("auth.middleware") && authProxy.includes('loginUrl: "/auth/sign-in"')],
-  ["cadastro, login Google e confirmação OTP estão disponíveis", signIn.includes('provider: "google"') && signUp.includes("signUp.email") && signUp.includes("emailOtp.verifyEmail") && signUp.includes("sendVerificationEmail")],
+  ["cadastro, login Google e confirmação OTP estão disponíveis", signIn.includes('provider: "google"') && signUp.includes("signUp.email") && signUp.includes("emailOtp.verifyEmail") && signUp.includes("sendVerificationOtp")],
   ["APIs de chat e voz exigem sessão", chat.includes("auth.getSession()") && tts.includes("auth.getSession()")],
   ["interface principal continua usando o endpoint de voz", page.includes('fetch("/api/tts"')],
   ["reconhecimento de voz do navegador continua presente", page.includes("SpeechRecognition") && page.includes("webkitSpeechRecognition")],

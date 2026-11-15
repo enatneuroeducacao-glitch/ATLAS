@@ -22,6 +22,8 @@ export default function SignUpPage() {
       const result=await authClient.signUp.email({name,email,password});
       if(result.error) throw new Error(result.error.message||"Não foi possível criar a conta.");
       if(result.data?.user && !result.data.user.emailVerified) {
+        const otpResult = await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" });
+        if (otpResult.error) throw new Error(otpResult.error.message || "Conta criada, mas não foi possível enviar o código de confirmação.");
         setStep("verify");
         setMessage("Enviamos um código de confirmação para seu e-mail. Informe o código para ativar sua conta.");
       } else {
@@ -37,15 +39,10 @@ export default function SignUpPage() {
     try {
       const result=await authClient.emailOtp.verifyEmail({email,otp:code});
       if(result.error) throw new Error(result.error.message||"Código inválido ou expirado.");
-      if(result.data?.session) {
-        router.replace("/");
-        router.refresh();
-      } else {
-        setStep("signup");
-        setPassword("");
-        setCode("");
-        setMessage("E-mail confirmado. Agora entre com seu e-mail e senha.");
-      }
+      setStep("signup");
+      setPassword("");
+      setCode("");
+      setMessage("E-mail confirmado com sucesso. Agora entre com seu e-mail e senha.");
     } catch(e){setError(e instanceof Error?e.message:"Não foi possível confirmar o e-mail.");}
     finally{setBusy(false);}
   }
@@ -53,7 +50,7 @@ export default function SignUpPage() {
   async function resend(){
     setError("");setMessage("");setBusy(true);
     try {
-      const result=await authClient.sendVerificationEmail({email,callbackURL:window.location.origin+"/"});
+      const result=await authClient.emailOtp.sendVerificationOtp({email,type:"email-verification"});
       if(result.error) throw new Error(result.error.message||"Não foi possível reenviar o código.");
       setMessage("Solicitação de reenvio realizada. Confira sua caixa de entrada e o spam.");
     } catch(e){setError(e instanceof Error?e.message:"Falha ao reenviar o código.");}
