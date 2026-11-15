@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3 } from "lucide-react";
+import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Pause, Play, Square } from "lucide-react";
 
 type VisualStyle = "wave" | "equalizer" | "radial";
 const MAX_SCRIPT = 10000;
@@ -11,6 +11,7 @@ export default function VideoStudio(){
  const [videoUrl,setVideoUrl]=useState(""); const [videoExt,setVideoExt]=useState("webm");
  const [busy,setBusy]=useState(false);
  const [recording,setRecording]=useState(false);
+ const [paused,setPaused]=useState(false);
  const [error,setError]=useState("");
  const [status,setStatus]=useState("");
  const [style,setStyle]=useState<VisualStyle>("wave");
@@ -24,6 +25,8 @@ export default function VideoStudio(){
  const destinationRef=useRef<MediaStreamAudioDestinationNode|null>(null);
  const animationRef=useRef<number>(0);
  const videoUrlRef=useRef("");
+ const recorderRef=useRef<MediaRecorder|null>(null);
+ const finishPlaybackRef=useRef<(()=>void)|null>(null);
  const enatLogoRef=useRef<HTMLImageElement|null>(null);
  const neuroLogoRef=useRef<HTMLImageElement|null>(null);
  useEffect(()=>{
@@ -31,8 +34,8 @@ export default function VideoStudio(){
   const neuro=new Image();neuro.src="/logos/neurociencia-aplicada-transito.jpeg";neuro.onload=()=>{neuroLogoRef.current=neuro;};
  },[]);
  useEffect(()=>()=>{cancelAnimationFrame(animationRef.current);if(audioUrl)URL.revokeObjectURL(audioUrl);if(videoUrlRef.current)URL.revokeObjectURL(videoUrlRef.current);audioContextRef.current?.close();},[]);
- async function generateAudio(){
-  if(!script.trim()||busy)return;
+ async function generateAudio():Promise<string|null>{
+  if(!script.trim()||busy)return null;
   setBusy(true);setError("");setStatus("Gerando narração com a voz do ATLAS...");
   try{
    const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:script.trim()}),signal:AbortSignal.timeout(110000)});
@@ -43,7 +46,8 @@ export default function VideoStudio(){
    if(audioUrl)URL.revokeObjectURL(audioUrl);
    setAudioUrl(url);setDuration(seconds);setStatus("Narração pronta · "+formatTime(seconds)+". O vídeo acompanhará toda a duração do áudio.");
    setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current="";return "";});
-  }catch(e){setError(e instanceof Error?e.message:"Falha ao gerar áudio.");setStatus("");}
+   return url;
+  }catch(e){setError(e instanceof Error?e.message:"Falha ao gerar áudio.");setStatus("");return null;}
   finally{setBusy(false);}
  }
  function formatTime(value:number){if(!Number.isFinite(value))return "--:--";const n=Math.max(0,Math.floor(value));return Math.floor(n/60)+":"+String(n%60).padStart(2,"0");}
@@ -105,17 +109,42 @@ export default function VideoStudio(){
    if(!mime)throw new Error("Formato de gravação não suportado neste navegador.");
    const recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000,audioBitsPerSecond:128000});const chunks:BlobPart[]=[];
    recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+   recorderRef.current=recorder;
    const completed=new Promise<Blob>((resolve,reject)=>{recorder.onerror=()=>reject(new Error("Falha durante a gravação."));recorder.onstop=()=>resolve(new Blob(chunks,{type:mime}));});
    audio.currentTime=0;audio.onended=null;audio.onerror=null;
-   const render=()=>{draw(ctx,analyser,w,h,style,performance.now());if(!audio!.paused&&!audio!.ended)animationRef.current=requestAnimationFrame(render);};
+   const render=()=>{draw(ctx,analyser,w,h,style,performance.now());if(recorderRef.current&&recorderRef.current.state!=="inactive")animationRef.current=requestAnimationFrame(render);};
    draw(ctx,analyser,w,h,style,0);recorder.start(1000);render();setStatus("Gravando vídeo sincronizado com o áudio · "+formatTime(audio.duration));
    await audio.play();
-   await new Promise<void>(resolve=>{audio.onended=()=>resolve();audio.onerror=()=>resolve();});
+   await new Promise<void>(resolve=>{finishPlaybackRef.current=resolve;audio.onended=()=>resolve();audio.onerror=()=>resolve();});
+   finishPlaybackRef.current=null;
    cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());recorder.stop();
    const blob=await completed;const url=URL.createObjectURL(blob);setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
    setStatus("Vídeo finalizado · "+formatTime(audio.duration)+" · "+(blob.type.includes("mp4")?"MP4":"WebM"));
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível exportar o vídeo.");setStatus("");}
-  finally{stream?.getTracks().forEach(t=>t.stop());setRecording(false);}
+  finally{stream?.getTracks().forEach(t=>t.stop());recorderRef.current=null;setRecording(false);setPaused(false);}
+ }
+ async function generateVideoWithAudio(){
+  const generated=await generateAudio();
+  if(!generated)return;
+  await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+  await exportVideo();
+ }
+ function pauseVideo(){
+  const audio=audioRef.current,recorder=recorderRef.current;
+  if(!audio||!recorder||recorder.state!=="recording")return;
+  audio.pause();recorder.pause();setPaused(true);setStatus("Gravação pausada.");
+ }
+ function resumeVideo(){
+  const audio=audioRef.current,recorder=recorderRef.current;
+  if(!audio||!recorder||recorder.state!=="paused")return;
+  void audio.play();recorder.resume();setPaused(false);setStatus("Gravação retomada.");
+ }
+ function stopVideo(){
+  const audio=audioRef.current,recorder=recorderRef.current;
+  if(!recorder||recorder.state==="inactive")return;
+  if(audio){audio.pause();audio.onended=null;}
+  finishPlaybackRef.current?.();
+  cancelAnimationFrame(animationRef.current);recorder.stop();setStatus("Finalizando arquivo para download...");
  }
  return <section className="videoStudio audioVisualStudio">
   <header className="videoStudioHeading"><div className="videoStudioIcon"><AudioLines size={25}/></div><div><span>ATLAS IA</span><h2>Estúdio de frequência sonora</h2><p>Transforme a narração em um vídeo futurista sincronizado com o áudio.</p></div></header>
@@ -131,10 +160,14 @@ export default function VideoStudio(){
    <div className="videoEditor">
     <div className="videoSectionTitle"><b>1. Texto para narração</b><small>{script.length.toLocaleString("pt-BR")} / {MAX_SCRIPT}</small></div>
     <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>setScript(e.target.value.slice(0,MAX_SCRIPT))} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>
-    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||recording} onClick={generateAudio}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando áudio...</>:<><Radio size={15}/> Gerar narração</>}</button>
+    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||recording} onClick={generateVideoWithAudio}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando áudio e preparando vídeo...</>:<><Radio size={15}/> Gerar vídeo com áudio</>}</button>
     {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio ref={audioRef} className="videoAudioPreview" controls src={audioUrl}/></div>}
     <p className="videoStatus" role="status">{status}</p>{error&&<p className="studioError" role="alert">{error}</p>}
-    <button className="videoPrimary videoExport" type="button" disabled={!audioUrl||recording||busy} onClick={exportVideo}>{recording?<><RefreshCw size={15} className="studioSpin"/> Gravando frequência...</>:<><Download size={15}/> Gerar vídeo completo</>}</button>
+    {recording&&<div className="audioStyleChoices audioRecordingControls">
+     {paused?<button type="button" onClick={resumeVideo}><Play size={16}/> Continuar</button>:<button type="button" onClick={pauseVideo}><Pause size={16}/> Pausar</button>}
+     <button type="button" onClick={stopVideo}><Square size={15}/> Parar e finalizar</button>
+    </div>}
+    {!recording&&audioUrl&&<button className="videoPrimary videoExport" type="button" disabled={busy} onClick={exportVideo}><RefreshCw size={15}/> Gerar vídeo novamente</button>}
     <p className="audioDurationNote">A duração do vídeo acompanha integralmente o áudio. Não há limite artificial de 2 minutos. Gravações longas dependem da memória disponível no navegador.</p>
    </div>
    <div className="videoPreviewPanel"><div className={"audioVisualPreview "+format}><canvas ref={canvasRef}/></div>
