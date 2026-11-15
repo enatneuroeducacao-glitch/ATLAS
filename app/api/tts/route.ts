@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth/server";
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { cleanTextForSpeech } from "@/lib/speech-text";
@@ -64,6 +65,10 @@ async function piperFallback(text: string): Promise<Response | null> {
 }
 
 export async function POST(request: Request) {
+  const { data: session } = await auth.getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Sessão necessária. Entre no ATLAS para continuar." }, { status: 401 });
+  }
   try {
     const origin = request.headers.get("origin");
     const host = request.headers.get("host");
