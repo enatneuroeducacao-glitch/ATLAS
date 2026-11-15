@@ -23,6 +23,7 @@ const signUp = read("app/auth/sign-up/page.tsx");
 const forgotPassword = read("app/auth/forgot-password/page.tsx");
 const resetPassword = read("app/auth/reset-password/page.tsx");
 const adminPage = read("app/admin/page.tsx");
+const authControls = read("components/AuthControls.tsx");
 
 const checks = [
   ["interface principal continua usando o endpoint de chat", page.includes('fetch("/api/chat"')],
@@ -52,6 +53,7 @@ const checks = [
   ["limpeza do texto falado continua isolada", tts.includes("cleanTextForSpeech") && speech.includes("export function cleanTextForSpeech")],
   ["health check continua sem expor segredos", health.includes("aiConfigured") && health.includes("voiceConfigured") && !health.includes("GEMINI_API_KEY:")],
   ["área administrativa exige sessão e papel admin no servidor", adminPage.includes("auth.getSession()") && adminPage.includes("user.role !== \"admin\"") && adminPage.includes("redirect(\"/auth/sign-in\")")],
+  ["atalho administrativo só aparece para papel admin", authControls.includes("user.role === \"admin\"") && authControls.includes('href="/admin"')],
   ["área administrativa não expõe gestão de usuários ainda não suportada", adminPage.includes("não permite adicionar o plugin administrativo") && adminPage.includes("Gestão de usuários")],
 ];
 
