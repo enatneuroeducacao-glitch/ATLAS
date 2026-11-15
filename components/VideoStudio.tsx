@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Eye, Zap, Play, Film } from "lucide-react";
+import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Eye, Zap, Play } from "lucide-react";
 
 type VisualStyle = "wave" | "equalizer" | "radial";
 type ProductionMode = "download" | "preview";
@@ -23,6 +23,7 @@ export default function VideoStudio(){
  const [duration,setDuration]=useState(0);
  const canvasRef=useRef<HTMLCanvasElement|null>(null);
  const videoUrlRef=useRef("");
+ const audioUrlRef=useRef("");
  const enatLogoRef=useRef<HTMLImageElement|null>(null);
  const neuroLogoRef=useRef<HTMLImageElement|null>(null);
 
@@ -30,12 +31,16 @@ export default function VideoStudio(){
   const enat=new Image();enat.src="/logos/enat-logo.png";enat.onload=()=>{enatLogoRef.current=enat;};
   const neuro=new Image();neuro.src="/logos/neurociencia-aplicada-transito.jpeg";neuro.onload=()=>{neuroLogoRef.current=neuro;};
  },[]);
- useEffect(()=>()=>{if(videoUrlRef.current)URL.revokeObjectURL(videoUrlRef.current);},[]);
+ useEffect(()=>()=>{if(videoUrlRef.current)URL.revokeObjectURL(videoUrlRef.current);if(audioUrlRef.current)URL.revokeObjectURL(audioUrlRef.current);},[]);
 
  function formatTime(value:number){
   if(!Number.isFinite(value))return "--:--";
   const n=Math.max(0,Math.floor(value));
   return Math.floor(n/60)+":"+String(n%60).padStart(2,"0");
+ }
+ function clearAudio(){
+  if(audioUrlRef.current)URL.revokeObjectURL(audioUrlRef.current);
+  audioUrlRef.current="";setAudioUrl("");setDuration(0);
  }
  function clearVideo(){
   setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current="";return "";});
@@ -51,7 +56,8 @@ export default function VideoStudio(){
    const url=URL.createObjectURL(blob);
    const probe=new Audio(url);
    const seconds=await new Promise<number>((resolve,reject)=>{probe.onloadedmetadata=()=>resolve(probe.duration);probe.onerror=()=>reject(new Error("Não foi possível ler a duração do áudio."));});
-   setAudioUrl(url);setDuration(seconds);clearVideo();
+   if(audioUrlRef.current)URL.revokeObjectURL(audioUrlRef.current);
+   audioUrlRef.current=url;setAudioUrl(url);setDuration(seconds);clearVideo();
    setStatus("Narração pronta · "+formatTime(seconds)+". Escolha o modo de produção.");
    return url;
   }catch(e){setError(e instanceof Error?e.message:"Falha ao gerar áudio.");setStatus("");return null;}
@@ -238,8 +244,8 @@ export default function VideoStudio(){
   <div className="audioStudioGrid">
    <div className="videoEditor">
     <div className="videoSectionTitle"><b>1. Texto para narração</b><small>{script.length.toLocaleString("pt-BR")} / {MAX_SCRIPT}</small></div>
-    <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>{setScript(e.target.value.slice(0,MAX_SCRIPT));setAudioUrl("");clearVideo();}} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>
-    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={startProduction}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando narração...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração e vídeo</>}</button>
+    <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>{setScript(e.target.value.slice(0,MAX_SCRIPT));clearAudio();clearVideo();}} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>
+    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={()=>void generateAudio()}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando narração...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração</>}</button>
     {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio className="videoAudioPreview" controls src={audioUrl}/></div>}
     <div className="videoProductionModes">
      <div className="videoSectionTitle"><b>2. Modo de produção</b><small>Escolha como deseja concluir</small></div>
