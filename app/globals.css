@@ -244,3 +244,26 @@ textarea{min-height:42px;max-height:110px}
 @media(max-width:520px){
  .audioVisualStudio .videoNarration{min-height:220px;height:220px}
 }
+
+
+/* Modos de produção e renderização offline do Estúdio de Vídeo */
+.videoProductionModes{margin-top:18px;padding:13px;border:1px solid #263b49;border-radius:8px;background:#0a131d}
+.videoModeChoices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.videoModeChoices button{display:flex;align-items:flex-start;gap:11px;min-width:0;padding:13px;border:1px solid #2b4654;border-radius:8px;background:#0c1722;color:#a9c4d0;text-align:left;transition:border-color .18s,background .18s,box-shadow .18s}
+.videoModeChoices button.selected{border-color:#70e4e8;background:linear-gradient(130deg,#12313b,#10202c);color:#9af2ed;box-shadow:0 0 16px rgba(60,220,230,.10)}
+.videoModeChoices button:disabled{opacity:.5;cursor:not-allowed}
+.videoModeChoices button>svg{flex-shrink:0;margin-top:2px}
+.videoModeChoices button span{display:grid;gap:5px;min-width:0}
+.videoModeChoices button b{font-size:11px;color:#e2f4f6}
+.videoModeChoices button small{font-size:9px;line-height:1.5;color:#8fa6b6}
+.videoStartProduction{margin-top:12px;min-width:210px}
+.videoRenderProgress{display:grid;gap:8px;margin-top:13px;padding:12px;border:1px solid #294653;border-radius:8px;background:#0b1722}
+.videoRenderProgress>div{display:flex;justify-content:space-between;gap:10px;font-size:10px;color:#a9c4d0}
+.videoRenderProgress strong{color:#85f0ed;font:700 11px 'DM Mono'}
+.videoRenderProgress progress{width:100%;height:8px;overflow:hidden;border:0;border-radius:8px;background:#223441;accent-color:#58dfe5}
+.videoRenderProgress progress::-webkit-progress-bar{background:#223441;border-radius:8px}
+.videoRenderProgress progress::-webkit-progress-value{background:linear-gradient(90deg,#27b9d3,#75f0e7);border-radius:8px}
+.videoRenderProgress progress::-moz-progress-bar{background:linear-gradient(90deg,#27b9d3,#75f0e7);border-radius:8px}
+.videoRenderProgress small{font-size:9px;line-height:1.5;color:#829aaa}
+.videoOfflineResult{display:block;width:100%;height:100%;object-fit:contain;background:#050b14}
+@media(max-width:800px){.videoModeChoices{grid-template-columns:1fr}.videoStartProduction{width:100%}}
