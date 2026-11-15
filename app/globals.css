@@ -208,3 +208,22 @@ textarea{min-height:42px;max-height:110px}
 .videoFreeNote{padding:12px;border:1px solid #28443e;border-radius:8px;background:#10221f;color:#9cc5b7;font-size:10px;line-height:1.6}
 @media(max-width:800px){.videoStudioGrid{grid-template-columns:1fr}.videoPreview{width:min(75%,300px)}.videoPreview.horizontal{width:100%}}
 @media(max-width:520px){.videoStudio{padding:13px}.videoStudioHeading h2{font-size:19px}.videoStudioToolbar{align-items:flex-start;flex-direction:column}.videoPreview{width:min(100%,260px)}}
+
+/* Estúdio audiovisual por frequência real do áudio */
+.audioVisualStudio .videoStudioToolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.audioStudioControls{display:grid;grid-template-columns:1fr;gap:8px;margin:18px 0;color:#d8eaf0;font-size:11px;font-weight:600}
+.audioStudioControls label{margin-top:5px;color:#a9c4d0}
+.audioStyleChoices{display:flex;gap:8px;flex-wrap:wrap}
+.audioStyleChoices button{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #294654;border-radius:7px;background:#0b1520;color:#a7c1cf;font-size:10px}
+.audioStyleChoices button.selected{border-color:#62e6e9;background:#12313b;color:#9cf5f1;box-shadow:0 0 16px rgba(60,220,230,.12)}
+.audioStudioGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,1fr);gap:14px}
+.audioReady{margin-top:18px;padding:12px;border:1px solid #284651;border-radius:8px;background:#101e2a}
+.audioDurationNote{margin-top:12px;color:#91aab8;font-size:10px;line-height:1.6}
+.audioVisualPreview{position:relative;width:100%;aspect-ratio:9/16;overflow:hidden;border:1px solid #245064;border-radius:9px;background:#050b14}
+.audioVisualPreview.horizontal{aspect-ratio:16/9}
+.audioVisualPreview canvas{display:block;width:100%;height:100%}
+.audioPreviewOverlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#72e9ed;pointer-events:none;opacity:.9}
+.audioPreviewOverlay b{font:700 14px Manrope;letter-spacing:2px;text-shadow:0 0 16px #00bccc}
+.audioPreviewOverlay span{font:9px 'DM Mono';letter-spacing:2px;color:#8ab8c9}
+@media(max-width:800px){.audioStudioGrid{grid-template-columns:1fr}}
+@media(max-width:520px){.audioStyleChoices{display:grid;grid-template-columns:1fr}.audioStyleChoices button{justify-content:center}}
