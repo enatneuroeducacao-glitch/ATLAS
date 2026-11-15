@@ -2,10 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import { authClient } from "@/lib/auth/client";
 
 export default function ResetPasswordPage() {
+  return <Suspense fallback={<main style={shell}><p style={{color:"#eaf2ff"}}>Carregando…</p></main>}><ResetPasswordForm /></Suspense>;
+}
+
+function ResetPasswordForm() {
   const router=useRouter();
   const params=useSearchParams();
   const token=params.get("token") || "";
