@@ -2,6 +2,10 @@
 
 Assistente especializado em trânsito, legislação, formação de condutores e instrutores, neuroeducação e segurança viária. O chat utiliza Google Gemini. A resposta falada prioriza Gemini 3.8 Flash-Lite TTS, com orientação de voz masculina adulta, grave, firme e natural em português brasileiro. O Piper auto-hospedado permanece como alternativa quando a voz neural estiver indisponível. A entrada por voz utiliza Web Speech API do navegador.
 
+## Evolução ATLAS JARVIS
+
+A arquitetura técnica híbrida, política de autonomia, segurança, persistência, ponte local Windows e roadmap estão documentados em [docs/ATLAS-JARVIS-ARQUITETURA.md](docs/ATLAS-JARVIS-ARQUITETURA.md). Este documento é o plano de referência; as fases serão implementadas em PRs pequenos e independentes, preservando as funcionalidades atuais.
+
 ## Requisitos
 - Node.js 20.9 ou superior
 - npm
