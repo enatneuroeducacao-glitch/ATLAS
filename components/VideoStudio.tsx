@@ -104,7 +104,8 @@ export default function VideoStudio(){
     context=new AudioContext();audioContextRef.current=context;
     const source=context.createMediaElementSource(audio);sourceRef.current=source;
     const analyser=context.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.82;analyserRef.current=analyser;
-    source.connect(analyser);analyser.connect(context.destination);
+    const destination=context.createMediaStreamDestination();destinationRef.current=destination;
+    source.connect(analyser);analyser.connect(context.destination);analyser.connect(destination);
    }
    await context.resume();
    audio.muted=false;audio.volume=1;
