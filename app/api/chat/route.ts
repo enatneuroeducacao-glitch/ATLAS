@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { ENAT_KNOWLEDGE } from "@/lib/enat-knowledge";
 export const runtime = "nodejs";
 type Msg = { role: "user" | "assistant"; content: string };
+function isAssistantMessage(message: Msg | undefined): boolean {
+  return message?.role === "assistant";
+}
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 15;
+const MAX_MESSAGE_CHARS = 30000;
+const MAX_HISTORY_CHARS = 120000;
+const MAX_HISTORY_MESSAGES = 20;
 function allowRequest(request: Request) {
   const now = Date.now();
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -48,9 +54,63 @@ BASE DE CONHECIMENTO ENAT:
 ${ENAT_KNOWLEDGE}`;
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { messages?: Msg[] };
-    const messages = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
-    if (!messages.length || messages.some(m => !m || !["user","assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 8000)) return NextResponse.json({ error: "Mensagens inválidas." }, { status: 400 });
+    let body: { messages?: unknown } | null;
+    try {
+      body = await request.json() as { messages?: unknown };
+    } catch {
+      return NextResponse.json({ error: "A solicitação não contém um JSON válido. Atualize a página e tente novamente." }, { status: 400 });
+    }
+    if (!body || typeof body !== "object" || !Array.isArray(body.messages)) {
+      return NextResponse.json({ error: "O histórico da conversa está em formato inválido. Inicie uma nova conversa e tente novamente." }, { status: 400 });
+    }
+
+    const normalizedMessages: Msg[] = [];
+    for (const item of body.messages.slice(-80)) {
+      if (!item || typeof item !== "object") {
+        return NextResponse.json({ error: "O histórico contém uma mensagem em formato inválido. Inicie uma nova conversa para continuar." }, { status: 400 });
+      }
+      const candidate = item as { role?: unknown; content?: unknown };
+      if ((candidate.role !== "user" && candidate.role !== "assistant") || typeof candidate.content !== "string") {
+        return NextResponse.json({ error: "O histórico contém uma mensagem incompatível. Inicie uma nova conversa para continuar." }, { status: 400 });
+      }
+
+      const content = candidate.content.trim();
+      if (!content) continue;
+      if (content.length > MAX_MESSAGE_CHARS) {
+        return NextResponse.json({
+          error: `Uma mensagem do histórico ultrapassa o limite de ${MAX_MESSAGE_CHARS.toLocaleString("pt-BR")} caracteres. Remova ou divida esse conteúdo e tente novamente.`
+        }, { status: 413 });
+      }
+
+      const previous = normalizedMessages[normalizedMessages.length - 1];
+      if (previous?.role === candidate.role) {
+        previous.content += `\n\n${content}`;
+      } else {
+        normalizedMessages.push({ role: candidate.role, content });
+      }
+    }
+
+    // Gemini expects a conversation to begin with a user turn and alternate user/model turns.
+    while (isAssistantMessage(normalizedMessages[0])) normalizedMessages.shift();
+    const messages = normalizedMessages.slice(-MAX_HISTORY_MESSAGES);
+    while (isAssistantMessage(messages[0])) messages.shift();
+
+    if (!messages.length || messages[messages.length - 1].role !== "user") {
+      return NextResponse.json({ error: "Não foi encontrada uma mensagem nova do usuário. Envie sua pergunta novamente." }, { status: 400 });
+    }
+
+    let totalCharacters = messages.reduce((total, message) => total + message.content.length, 0);
+    while (totalCharacters > MAX_HISTORY_CHARS && messages.length > 1) {
+      const removed = messages.shift()!;
+      totalCharacters -= removed.content.length;
+      while (isAssistantMessage(messages[0])) {
+        const skipped = messages.shift()!;
+        totalCharacters -= skipped.content.length;
+      }
+    }
+    if (totalCharacters > MAX_HISTORY_CHARS) {
+      return NextResponse.json({ error: "O conteúdo enviado excede o limite total de contexto. Divida o prompt em partes menores." }, { status: 413 });
+    }
     if (!allowRequest(request)) return NextResponse.json({ error: "Muitas mensagens em pouco tempo. Aguarde um minuto e tente novamente." }, { status: 429 });
     const key = process.env.GEMINI_API_KEY;
     if (!key) return NextResponse.json({ error: "Configure GEMINI_API_KEY nas variáveis de ambiente do Render para ativar o chat do ATLAS com Google Gemini." }, { status: 503 });
