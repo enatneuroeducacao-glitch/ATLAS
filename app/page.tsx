@@ -12,6 +12,18 @@ const LEGACY_KEY = "atlas-conversation-v1";
 const welcome = "Olá! Sou o ATLAS II — Instrutor Inteligente. Posso ajudar com legislação, aulas, neuroeducação, segurança viária e mobilidade.";
 function newId() { return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `atlas-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 function newConversation(): Conversation { return { id: newId(), title: "Nova conversa", messages: [], updatedAt: Date.now() }; }
+const MAX_PROMPT_CHARS = 30000;
+function normalizeStoredMessages(value: unknown): Message[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((m: any): m is Message =>
+      !!m &&
+      (m.role === "user" || m.role === "assistant") &&
+      typeof m.content === "string" &&
+      m.content.trim().length > 0
+    )
+    .slice(-80);
+}
 function titleFrom(text: string) { const clean = text.replace(/\\s+/g, " ").trim(); return clean.length > 42 ? clean.slice(0, 42).trimEnd() + "…" : clean || "Nova conversa"; }
 
 export default function Home() {
@@ -40,13 +52,13 @@ export default function Home() {
         if (Array.isArray(parsed)) saved = parsed.filter((c: any) => c && typeof c.id === "string" && Array.isArray(c.messages)).map((c: any) => ({
           id: c.id, title: typeof c.title === "string" ? c.title : "Conversa",
           updatedAt: Number(c.updatedAt) || Date.now(),
-          messages: c.messages.filter((m: any) => m && ["user", "assistant"].includes(m.role) && typeof m.content === "string").slice(-80)
+          messages: normalizeStoredMessages(c.messages)
         }));
       } else {
         const legacy = localStorage.getItem(LEGACY_KEY);
         if (legacy) {
           const old = JSON.parse(legacy);
-          if (Array.isArray(old) && old.length) saved = [{ id: newId(), title: titleFrom(old.find((m: any) => m.role === "user")?.content || "Conversa anterior"), messages: old.slice(-80), updatedAt: Date.now() }];
+          if (Array.isArray(old) && old.length) saved = [{ id: newId(), title: titleFrom(old.find((m: any) => m.role === "user")?.content || "Conversa anterior"), messages: normalizeStoredMessages(old), updatedAt: Date.now() }];
         }
       }
     } catch { saved = []; }
@@ -156,6 +168,10 @@ export default function Home() {
     let conversationId = activeId;
     if (!conversationId) { const fresh = newConversation(); setConversations(prev => [fresh, ...prev]); setActiveId(fresh.id); conversationId = fresh.id; }
     const message = text.trim();
+    if (message.length > MAX_PROMPT_CHARS) {
+      window.alert(`Sua mensagem tem ${message.length.toLocaleString("pt-BR")} caracteres. O limite atual é de ${MAX_PROMPT_CHARS.toLocaleString("pt-BR")} caracteres por mensagem. O texto foi mantido para você poder ajustá-lo.`);
+      return;
+    }
     const existing = conversations.find(c => c.id === conversationId);
     const nextHistory: Message[] = [...(existing?.messages || []), { role: "user" as const, content: message }].slice(-80);
     setText(""); setLoading(true); setSlowRequest(false);
@@ -165,7 +181,7 @@ export default function Home() {
     });
     requestTimer.current = setTimeout(() => setSlowRequest(true), 12000);
     try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory }), signal: AbortSignal.timeout(70000) });
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory.slice(-20) }), signal: AbortSignal.timeout(70000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível gerar a resposta.");
       const answer = String(data.reply || "O modelo não retornou uma resposta.");
