@@ -100,14 +100,26 @@ export default function VideoStudio(){
   let stream:MediaStream|undefined;
   try{
    let context=audioContextRef.current;
-   if(!context){context=new AudioContext();audioContextRef.current=context;const source=context.createMediaElementSource(audio);sourceRef.current=source;const analyser=context.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.82;analyserRef.current=analyser;const destination=context.createMediaStreamDestination();destinationRef.current=destination;source.connect(analyser);analyser.connect(context.destination);analyser.connect(destination);}
+   if(!context){
+    context=new AudioContext();audioContextRef.current=context;
+    const source=context.createMediaElementSource(audio);sourceRef.current=source;
+    const analyser=context.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=.82;analyserRef.current=analyser;
+    source.connect(analyser);analyser.connect(context.destination);
+   }
    await context.resume();
+   audio.muted=false;audio.volume=1;
    const w=format==="vertical"?720:1280,h=format==="vertical"?1280:720;canvas.width=w;canvas.height=h;
-   const analyser=analyserRef.current!,destination=destinationRef.current!,ctx=canvas.getContext("2d");if(!ctx)throw new Error("Não foi possível preparar a visualização.");
-   const videoStream=canvas.captureStream(30);stream=new MediaStream([...videoStream.getVideoTracks(),...destination.stream.getAudioTracks()]);
+   const analyser=analyserRef.current!,ctx=canvas.getContext("2d");if(!ctx)throw new Error("Não foi possível preparar a visualização.");
+   const videoStream=canvas.captureStream(30);
+   // Captura a saída real do elemento de áudio, evitando depender de uma rota de mixagem separada.
+   const audioStream=typeof audio.captureStream==="function"?audio.captureStream():destinationRef.current?.stream;
+   const audioTracks=audioStream?.getAudioTracks()??[];
+   if(!audioTracks.length)throw new Error("O navegador não disponibilizou a faixa de áudio para a gravação. Tente novamente no Microsoft Edge atualizado.");
+   stream=new MediaStream([...videoStream.getVideoTracks(),...audioTracks]);
    const mime=["video/mp4;codecs=h264,aac","video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus"].find(t=>MediaRecorder.isTypeSupported(t));
    if(!mime)throw new Error("Formato de gravação não suportado neste navegador.");
-   const recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000,audioBitsPerSecond:128000});const chunks:BlobPart[]=[];
+   if(stream.getAudioTracks().length===0)throw new Error("A gravação foi interrompida: o vídeo está sem faixa de áudio.");
+   const recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000,audioBitsPerSecond:192000});const chunks:BlobPart[]=[];
    recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
    recorderRef.current=recorder;
    const completed=new Promise<Blob>((resolve,reject)=>{recorder.onerror=()=>reject(new Error("Falha durante a gravação."));recorder.onstop=()=>resolve(new Blob(chunks,{type:mime}));});
@@ -118,8 +130,14 @@ export default function VideoStudio(){
    await new Promise<void>(resolve=>{finishPlaybackRef.current=resolve;audio.onended=()=>resolve();audio.onerror=()=>resolve();});
    finishPlaybackRef.current=null;
    cancelAnimationFrame(animationRef.current);draw(ctx,analyser,w,h,style,performance.now());recorder.stop();
-   const blob=await completed;const url=URL.createObjectURL(blob);setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
-   setStatus("Vídeo finalizado · "+formatTime(audio.duration)+" · "+(blob.type.includes("mp4")?"MP4":"WebM"));
+   const blob=await completed;
+   if(!blob.size)throw new Error("O arquivo de vídeo ficou vazio. Tente gerar novamente.");
+   const url=URL.createObjectURL(blob);
+   const verification=new Audio(url);
+   await new Promise<void>((resolve,reject)=>{verification.onloadedmetadata=()=>resolve();verification.onerror=()=>reject(new Error("Não foi possível validar o arquivo de vídeo gerado."));});
+   if(!Number.isFinite(verification.duration)||verification.duration<=0){URL.revokeObjectURL(url);throw new Error("O vídeo gerado não contém uma duração válida.");}
+   setVideoExt(blob.type.includes("mp4")?"mp4":"webm");setVideoUrl(old=>{if(old)URL.revokeObjectURL(old);videoUrlRef.current=url;return url;});
+   setStatus("Vídeo finalizado com faixa de áudio · "+formatTime(verification.duration)+" · "+(blob.type.includes("mp4")?"MP4":"WebM"));
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível exportar o vídeo.");setStatus("");}
   finally{stream?.getTracks().forEach(t=>t.stop());recorderRef.current=null;setRecording(false);setPaused(false);}
  }
