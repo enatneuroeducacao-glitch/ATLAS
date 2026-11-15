@@ -56,7 +56,7 @@ const checks = [
   ["área administrativa exige sessão e papel admin no servidor", adminPage.includes("auth.getSession()") && adminPage.includes('user.role !== "admin"') && adminPage.includes('redirect("/auth/sign-in")')],
   ["atalho administrativo só aparece para papel admin", authControls.includes('user.role === "admin"') && authControls.includes('href="/admin"')],
   ["gestão administrativa usa endpoints oficiais do Neon Auth", adminUsers.includes("list-users?") && adminUsers.includes('"set-role"') && adminUsers.includes('"ban-user"') && adminUsers.includes('"unban-user"')],
-  ["gestão administrativa não permite bloquear ou alterar a própria conta", adminUsers.includes("user.id === currentUserId") && adminUsers.includes("disabled={isSelf || busy}")),
+  ["gestão administrativa não permite bloquear ou alterar a própria conta", adminUsers.includes("user.id === currentUserId") && adminUsers.includes("disabled={isSelf || busy}")],
   ["gestão administrativa oferece pesquisa e paginação", adminUsers.includes("searchValue") && adminUsers.includes("PAGE_SIZE") && adminUsers.includes("Próxima")],
 ];
 
