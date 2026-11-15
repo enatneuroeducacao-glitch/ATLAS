@@ -4,6 +4,7 @@ import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, Clipboa
 import { cleanTextForSpeech } from "@/lib/speech-text";
 import AudioStudio from "@/components/AudioStudio";
 import VideoStudio from "@/components/VideoStudio";
+import AuthControls from "@/components/AuthControls";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Conversation = { id: string; title: string; messages: Message[]; updatedAt: number };
@@ -224,7 +225,7 @@ export default function Home() {
       <div className="sideGrow"/><div className="security"><ShieldCheck/><b>Proteção ativa</b><p>O ATLAS não executa ações externas nesta versão.</p><small>● POLÍTICAS BÁSICAS ATIVAS</small></div>
     </aside>
     <section className="main">
-      <header className="topbar">Workspace <span>{serviceStatus === "ready" ? "● Sistema operacional" : serviceStatus === "error" ? "● Verificar conexão" : "● Verificando sistema…"}</span></header>
+      <header className="topbar"><AuthControls/>Workspace <span>{serviceStatus === "ready" ? "● Sistema operacional" : serviceStatus === "error" ? "● Verificar conexão" : "● Verificando sistema…"}</span></header>
       <div className="content">
         <section className="welcomeBar"><div><div className="eyebrow">ATLAS II <span>/ INSTRUTOR INTELIGENTE</span></div><h1>Conhecimento que <span>protege vidas.</span></h1><p>Trânsito, legislação, neuroeducação e segurança viária em um só lugar.</p></div><div className="welcomeOrb"><AudioLines size={27}/></div></section>
         {activeMenu === "studio" ? <AudioStudio/> : activeMenu === "video" ? <VideoStudio/> : <section className="chat" id="atlas-chat">
