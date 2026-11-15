@@ -89,7 +89,7 @@ export default function VideoStudio(){
     {s.imageUrl&&<img className="videoSceneThumb" src={s.imageUrl} alt={"Imagem da cena "+(i+1)}/>}
    </article>)}
    <button className="videoAddScene" type="button" disabled={scenes.length>=12} onClick={()=>setScenes(old=>[...old,makeScene(old.length)])}>+ Adicionar cena</button>
-   <div className="videoSectionTitle videoNarrationTitle"><b>2. Roteiro da narração</b><small>{script.length.toLocaleString("pt-BR")} caracteres · máximo recomendado: 400 palavras</small></div>
+   <div className="videoSectionTitle videoNarrationTitle"><b>2. Roteiro da narração</b><small>{script.length.toLocaleString("pt-BR")} caracteres · máximo recomendado: 280 palavras</small></div>
    <textarea className="videoNarration" rows={7} maxLength={10000} value={script} onChange={e=>setScript(e.target.value.slice(0,10000))} placeholder="Cole o roteiro que será narrado..."/>
    <button className="videoPrimary" type="button" disabled={!script.trim()||busy} onClick={generateAudio}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando...</>:<><Volume2 size={15}/> Gerar narração</>}</button>
    {audioUrl&&<><audio ref={audioRef} className="videoAudioPreview" controls src={audioUrl}/><small className="videoDuration">Duração da narração: {Math.ceil(estimatedSeconds)}s / 120s</small></> }
