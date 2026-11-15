@@ -20,6 +20,8 @@ const authRoute = read("app/api/auth/[...path]/route.ts");
 const authProxy = read("proxy.ts");
 const signIn = read("app/auth/sign-in/page.tsx");
 const signUp = read("app/auth/sign-up/page.tsx");
+const forgotPassword = read("app/auth/forgot-password/page.tsx");
+const resetPassword = read("app/auth/reset-password/page.tsx");
 
 const checks = [
   ["interface principal continua usando o endpoint de chat", page.includes('fetch("/api/chat"')],
@@ -27,7 +29,10 @@ const checks = [
   ["cliente usa o wrapper oficial Neon Auth", authClient.includes("createAuthClient") && authClient.includes("@neon/auth/next")],
   ["proxy de autenticação expõe os métodos HTTP necessários", authRoute.includes("auth.handler()") && ["GET","POST","PUT","PATCH","DELETE"].every(method => authRoute.includes(method))],
   ["rotas privadas exigem sessão", authProxy.includes("auth.middleware") && authProxy.includes('loginUrl: "/auth/sign-in"')],
-  ["cadastro, login Google e confirmação OTP estão disponíveis", signIn.includes('provider: "google"') && signUp.includes("signUp.email") && signUp.includes("emailOtp.verifyEmail") && signUp.includes("sendVerificationOtp")],
+  ["login por e-mail e senha está disponível sem login social", signIn.includes("signIn.email") && !signIn.includes("provider:")],
+  ["cadastro exige confirmação OTP", signUp.includes("signUp.email") && signUp.includes("emailOtp.verifyEmail") && signUp.includes("sendVerificationOtp")],
+  ["recuperação de senha solicita redefinição por e-mail", forgotPassword.includes("requestPasswordReset") && forgotPassword.includes("/auth/reset-password")],
+  ["redefinição valida token e confirmação de senha", resetPassword.includes("resetPassword") && resetPassword.includes("params.get") && resetPassword.includes("password!==confirm")],
   ["APIs de chat e voz exigem sessão", chat.includes("auth.getSession()") && tts.includes("auth.getSession()")],
   ["interface principal continua usando o endpoint de voz", page.includes('fetch("/api/tts"')],
   ["reconhecimento de voz do navegador continua presente", page.includes("SpeechRecognition") && page.includes("webkitSpeechRecognition")],
