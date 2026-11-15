@@ -134,3 +134,33 @@ textarea{min-height:42px;max-height:110px}
  .historyItem{justify-content:center}
  .historyOpen{justify-content:center;padding:9px 0}
 }
+
+
+/* Estúdio de áudio para narrações e postagens */
+.audioStudio{width:100%;border:1px solid #263b4a;border-radius:11px;background:linear-gradient(145deg,#101b27,#0d151f);padding:22px}
+.studioHeading{display:flex;align-items:center;gap:14px;padding-bottom:18px;border-bottom:1px solid #243441}
+.studioIcon,.outputIcon{width:48px;height:48px;display:grid;place-items:center;flex-shrink:0;border:1px solid #32616a;border-radius:12px;background:#142f39;color:#83eeea}
+.studioHeading span{font:9px 'DM Mono';letter-spacing:1.2px;color:#82dfe2}
+.studioHeading h2{font:700 22px Manrope;margin:5px 0}
+.studioHeading p{font-size:11px;color:#8fa2b2;margin:0}
+.studioGrid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:14px;margin-top:17px}
+.studioEditor,.studioOutput{min-width:0;border:1px solid #263846;border-radius:9px;background:#0c141e;padding:16px}
+.studioEditor label{display:block;margin-bottom:10px;font-weight:700;color:#dce8f0}
+.studioEditor textarea{display:block;min-height:220px;max-height:420px;padding:12px;border:1px solid #2c414f;border-radius:7px;background:#080f17;font-size:12px;line-height:1.7}
+.studioMeta{display:flex;justify-content:space-between;gap:10px;margin:9px 0 13px;color:#8095a6;font-size:9px}
+.studioGenerate,.studioDownload{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border:1px solid #70e4e8;border-radius:7px;background:#70e4e8;color:#102029;font-weight:700;font-size:11px;text-decoration:none}
+.studioGenerate:disabled{opacity:.45;cursor:not-allowed}
+.studioOutput{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:300px}
+.studioOutput h3{font:650 16px Manrope;margin:14px 0 6px}
+.studioOutput>p{max-width:300px;color:#91a3b2;font-size:11px;line-height:1.6}
+.studioHint,.audioResult small{color:#71899a;font-size:9px}
+.audioResult{width:100%;display:grid;gap:12px;justify-items:center;margin-top:14px}
+.audioResult audio{width:100%;height:38px}
+.studioDownload{background:#142f39;color:#a4f2ed;border-color:#32616a}
+.studioError{margin:12px 0 0;color:#ff9ca5;font-size:11px}
+.studioNote{display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding:12px;border:1px solid #28443e;border-radius:8px;background:#10221f;color:#9cc5b7;font-size:10px;line-height:1.6}
+.studioNote svg{flex-shrink:0;color:#70dcb7}
+.studioSpin{animation:studio-spin 1s linear infinite}
+@keyframes studio-spin{to{transform:rotate(360deg)}}
+@media(max-width:800px){.studioGrid{grid-template-columns:1fr}.studioOutput{min-height:230px}.studioEditor textarea{min-height:180px}}
+@media(max-width:520px){.audioStudio{padding:13px}.studioHeading h2{font-size:19px}.studioMeta{flex-direction:column}.studioOutput{padding:14px}}

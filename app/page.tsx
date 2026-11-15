@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, House, Plus, Trash2, Clock3 } from "lucide-react";
 import { cleanTextForSpeech } from "@/lib/speech-text";
+import AudioStudio from "@/components/AudioStudio";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Conversation = { id: string; title: string; messages: Message[]; updatedAt: number };
@@ -192,7 +193,8 @@ export default function Home() {
       <button type="button" className="navItem" onClick={() => navigate("lesson", "Elabore um plano de aula completo sobre: [informe o tema]. Inclua público-alvo, duração, objetivos, competências, sequência didática, atividade e avaliação.")}><GraduationCap size={17}/> Planejar aula</button>
       <button type="button" className="navItem" onClick={() => navigate("quiz", "Crie um simulado de trânsito com 10 questões de múltipla escolha, gabarito comentado e nível de dificuldade progressivo. Informe o tema: [tema].")}><ClipboardList size={17}/> Criar simulado</button>
       <button type="button" className="navItem" onClick={() => navigate("law", "Explique a legislação de trânsito aplicável ao seguinte tema. Identifique a norma, artigo, vigência e fonte oficial atualizada: [tema].")}><Scale size={17}/> Legislação</button>
-      <button type="button" className="navItem" onClick={() => navigate("risk", "Analise esta situação de trânsito sob a ótica da segurança viária: perigos, riscos, fatores humanos, usuários vulneráveis e conduta preventiva. Situação: [descreva].")}><ShieldAlert size={17}/> Análise de risco</button>
+      <button type="button" className={`navItem ${activeMenu === "studio" ? "active" : ""}`} onClick={() => setActiveMenu("studio")}><AudioLines size={17}/> Estúdio de áudio</button>
+      <button type="button" className={`navItem ${activeMenu === "risk" ? "active" : ""}`} onClick={() => navigate("risk", "Analise esta situação de trânsito sob a ótica da segurança viária: perigos, riscos, fatores humanos, usuários vulneráveis e conduta preventiva. Situação: [descreva].")}><ShieldAlert size={17}/> Análise de risco</button>
       <div className="sidebarHistory" id="atlas-history">
         <div className="historyHeading"><span><History size={13}/> CONVERSAS</span><small>{conversations.length}</small></div>
         <div className="historyItems">{sortedConversations.map(c => <div className={`historyItem ${c.id === activeId ? "selected" : ""}`} key={c.id}>
@@ -207,14 +209,14 @@ export default function Home() {
       <header className="topbar">Workspace <span>{serviceStatus === "ready" ? "● Sistema operacional" : serviceStatus === "error" ? "● Verificar conexão" : "● Verificando sistema…"}</span></header>
       <div className="content">
         <section className="welcomeBar"><div><div className="eyebrow">ATLAS II <span>/ INSTRUTOR INTELIGENTE</span></div><h1>Conhecimento que <span>protege vidas.</span></h1><p>Trânsito, legislação, neuroeducação e segurança viária em um só lugar.</p></div><div className="welcomeOrb"><AudioLines size={27}/></div></section>
-        <section className="chat" id="atlas-chat">
+        {activeMenu === "studio" ? <AudioStudio/> : <section className="chat" id="atlas-chat">
           <header><AudioLines/><div><b>{active?.title || "Nova conversa"}</b><small>Instrutor Inteligente · Trânsito, legislação, aulas e neuroeducação.</small></div><span>{loading ? "● PROCESSANDO" : "● ONLINE"}</span></header>
           <div className="conversation" id="atlas-conversation" ref={conversationRef} aria-live="polite">
             {history.length === 0 ? <div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS II <small>INSTRUTOR INTELIGENTE</small></b><p>{welcome}</p></div></div> : history.map((item, index) => <div className="answer" key={index}><div className="botIcon">{item.role === "assistant" ? <Bot/> : <span>V</span>}</div><div><b>{item.role === "assistant" ? "ATLAS" : "VOCÊ"} <small>{item.role === "assistant" ? "ASSISTENTE" : "MENSAGEM"}</small></b><p>{item.content}</p></div></div>)}
             {loading && <div className="answer processing"><div className="botIcon"><Bot/></div><div><b>ATLAS</b><p>{slowRequest ? "Ainda estou elaborando a resposta. Isso pode levar alguns segundos..." : "Analisando sua pergunta e preparando a resposta..."}</p><div className="processingTrack"><span/></div></div></div>}
           </div>
           <form onSubmit={send}><textarea id="atlas-chat-input" value={text} onChange={e => setText(e.target.value)} placeholder="Pergunte sobre CTB, legislação, aulas, direção defensiva, neuroeducação ou segurança viária…" rows={2} disabled={loading}/><div className="formFoot"><button type="button" className="voiceButton" onClick={toggleMic} disabled={loading}>{listening ? <MicOff size={16}/> : <Mic size={16}/>} {listening ? "Ouvindo…" : "Falar mensagem"}</button><button type="button" className="voiceButton" onClick={() => { setVoice(!voice); if (voice) { window.speechSynthesis?.cancel(); audioRef.current?.pause(); } }}><AudioLines size={15}/> Resposta {voice ? "falada" : "silenciosa"}</button><button className="send" disabled={loading || !text.trim()}><Send size={16}/> Enviar</button></div></form>
-        </section>
+        </section>}
         <footer>ATLAS II / INSTRUTOR INTELIGENTE <span>TRÂNSITO + LEGISLAÇÃO + NEUROEDUCAÇÃO / SEGURANÇA CONTROLADA</span></footer>
       </div>
     </section>
