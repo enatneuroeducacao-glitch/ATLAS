@@ -67,8 +67,8 @@ export default function VideoStudio(){
    const dw=img.naturalWidth*scale,dh=img.naturalHeight*scale;
    ctx.drawImage(img,x-dw/2,y-dh/2,dw,dh);
   };
-  drawLogo(neuroLogoRef.current,w*.27,h*.105,w*.20,h*.15);
-  drawLogo(enatLogoRef.current,w*.73,h*.105,w*.16,h*.15);
+  drawLogo(neuroLogoRef.current,w*.27,h*.105,w*.28,h*.19);
+  drawLogo(enatLogoRef.current,w*.73,h*.105,w*.24,h*.19);
   ctx.textAlign="center";
   ctx.save();
   ctx.shadowColor="rgba(31,226,238,.7)";ctx.shadowBlur=Math.max(12,w*.018);
