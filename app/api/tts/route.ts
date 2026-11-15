@@ -65,11 +65,11 @@ async function piperFallback(text: string): Promise<Response | null> {
 }
 
 export async function POST(request: Request) {
-  const { data: session } = await auth.getSession();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Sessão necessária. Entre no ATLAS para continuar." }, { status: 401 });
-  }
   try {
+    const { data: session } = await auth.getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Sessão necessária. Entre no ATLAS para continuar." }, { status: 401 });
+    }
     const origin = request.headers.get("origin");
     const host = request.headers.get("host");
     if (origin && host && new URL(origin).host !== host) {
