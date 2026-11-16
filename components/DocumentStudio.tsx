@@ -29,7 +29,8 @@ const templates: Record<DocumentKind, { label: string; title: string; body: stri
 };
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char] || char));
+  const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+  return value.replace(/[&<>"]/g, char => entities[char]);
 }
 
 export default function DocumentStudio({ initialContent = "", onClose }: { initialContent?: string; onClose: () => void }) {
