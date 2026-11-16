@@ -37,7 +37,6 @@ export default function DocumentStudio({ initialContent = "", onClose }: { initi
   const [title, setTitle] = useState(templates.relatorio.title);
   const [content, setContent] = useState(initialContent.trim() || templates.relatorio.body);
   const [status, setStatus] = useState("");
-  const currentTemplate = templates[kind];
 
   function changeKind(next: DocumentKind) {
     setKind(next);
