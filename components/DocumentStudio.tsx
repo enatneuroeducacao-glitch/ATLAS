@@ -42,7 +42,7 @@ export default function DocumentStudio({ initialContent = "", onClose }: { initi
   function changeKind(next: DocumentKind) {
     setKind(next);
     setTitle(templates[next].title);
-    setContent(initialContent.trim() || templates[next].body);
+    setContent(templates[next].body);
     setStatus("");
   }
 
@@ -54,7 +54,7 @@ export default function DocumentStudio({ initialContent = "", onClose }: { initi
       header{border-bottom:2px solid #177e83;padding-bottom:14px;margin-bottom:24px}header .brand{font-size:9pt;letter-spacing:2px;color:#177e83;font-weight:bold}
       h1{font-size:20pt;margin:8px 0 0}main{white-space:pre-wrap;overflow-wrap:anywhere}footer{margin-top:32px;padding-top:10px;border-top:1px solid #cbd5e1;font-size:8pt;color:#64748b}
       @media screen{body{max-width:800px;margin:30px auto;padding:36px;box-shadow:0 2px 18px #0002}}
-    </style></head><body><header><div class="brand">ENAT · ATLAS II</div><h1>${safeTitle}</h1></header><main>${safeContent}</main><footer>Documento elaborado com apoio do ATLAS II · Ensino Neuroeducacional Aplicado ao Trânsito</footer><script>window.onload=()=>{document.title=${JSON.stringify(title.trim() || "Documento ATLAS II")};};</script></body></html>`;
+    </style></head><body><header><div class="brand">ENAT · ATLAS II</div><h1>${safeTitle}</h1></header><main>${safeContent}</main><footer>Documento elaborado com apoio do ATLAS II · Ensino Neuroeducacional Aplicado ao Trânsito</footer><script>window.onload=()=>{document.title=${JSON.stringify(title.trim() || "Documento ATLAS II")};window.setTimeout(()=>window.print(),250);};</script></body></html>`;
   }, [title, content]);
 
   function openPreview() {
