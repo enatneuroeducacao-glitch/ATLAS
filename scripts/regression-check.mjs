@@ -25,6 +25,7 @@ const resetPassword = read("app/auth/reset-password/page.tsx");
 const adminPage = read("app/admin/page.tsx");
 const adminUsers = read("components/AdminUserManagement.tsx");
 const authControls = read("components/AuthControls.tsx");
+const documentStudio = read("components/DocumentStudio.tsx");
 
 const checks = [
   ["interface principal continua usando o endpoint de chat", page.includes('fetch("/api/chat"')],
@@ -58,6 +59,10 @@ const checks = [
   ["gestão administrativa usa endpoints oficiais do Neon Auth", adminUsers.includes("list-users?") && adminUsers.includes('"set-role"') && adminUsers.includes('"ban-user"') && adminUsers.includes('"unban-user"')],
   ["gestão administrativa não permite bloquear ou alterar a própria conta", adminUsers.includes("user.id === currentUserId") && adminUsers.includes("disabled={isSelf || busy}")],
   ["gestão administrativa oferece pesquisa e paginação", adminUsers.includes("searchValue") && adminUsers.includes("PAGE_SIZE") && adminUsers.includes("Próxima")],
+  ["Estúdio de documentos está integrado ao bate-papo", page.includes("<DocumentStudio") && page.includes("Criar documento")],
+  ["Estúdio de documentos oferece modelos educacionais e institucionais", ["relatorio", "plano", "questionario", "tecnico"].every(kind => documentStudio.includes(`${kind}:`))],
+  ["Estúdio de documentos permite prévia para impressão e PDF", documentStudio.includes("window.open") && documentStudio.includes("window.print") === false && documentStudio.includes("Salvar como PDF")],
+  ["conteúdo do documento é escapado antes da prévia HTML", documentStudio.includes("escapeHtml") && documentStudio.includes("safeContent")],
 ];
 
 let failures = 0;
