@@ -4,7 +4,7 @@ import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Ey
 
 type VisualStyle = "wave" | "equalizer" | "radial";
 type ProductionMode = "download" | "preview";
-const MAX_SCRIPT = 10000;
+const MAX_SCRIPT = 30000;
 const FPS = 30;
 const SCRIPT_STORAGE_KEY = "atlas.video-studio.script.v1";
 
