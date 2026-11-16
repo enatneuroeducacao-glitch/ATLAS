@@ -9,7 +9,7 @@ const buckets = new Map<string, { count: number; resetAt: number }>();
 const cache = new Map<string, { audio: Uint8Array; createdAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
-const MAX_TTS_CHARS = 10000;
+const MAX_TTS_CHARS = 30000;
 const CACHE_TTL = 10 * 60_000;
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
 
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     }
     const body = await request.json() as { text?: unknown };
     if (typeof body.text !== "string" || !body.text.trim() || body.text.length > MAX_TTS_CHARS) {
-      return NextResponse.json({ error: "Texto inválido. O limite é de 10.000 caracteres." }, { status: 400 });
+      return NextResponse.json({ error: "Texto inválido. O limite é de 30.000 caracteres." }, { status: 400 });
     }
     const speechText = cleanTextForSpeech(body.text);
     if (!speechText) return NextResponse.json({ error: "Não há texto para leitura." }, { status: 400 });
