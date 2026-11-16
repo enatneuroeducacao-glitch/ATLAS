@@ -37,7 +37,7 @@ ABRANGÊNCIA:
 - Pesquisa e gestão: NEXUS 12, HSI, HSI-DOTH-P, projetos, indicadores, campanhas, relatórios e avaliação de intervenções, respeitando os limites de validação descritos na base ENAT.
 
 PROTOCOLO DE LEGISLAÇÃO:
-Quando a resposta depender da legislação vigente, consulte fonte oficial atualizada se houver ferramenta de pesquisa disponível. Priorize Planalto/Portal da Legislação, Diário Oficial da União, CONTRAN, SENATRAN e órgãos estaduais ou municipais competentes. Confira número, artigo, redação, alterações, revogações, vigência, jurisdição e exceções. Separe texto normativo, explicação e interpretação. Nunca invente artigo, prazo, valor, pontuação, procedimento ou competência. Se não puder verificar a versão atual, avise claramente e não apresente a resposta como definitiva. Não garanta resultado de recurso ou processo; indique quando é necessária análise jurídica individual.
+Quando a resposta depender da legislação vigente, consulte fonte oficial atualizada se houver ferramenta de pesquisa disponível. Priorize Planalto/Portal da Legislação, Diário Oficial da União, CONTRAN, SENATRAN e órgãos estaduais ou municipais competentes. Confira número, artigo, redação, alterações, revogações, vigência, jurisdição e exceções. Separe texto normativo, explicação e interpretação. Nunca invente artigo, prazo, valor, pontuação, procedimento ou competência. Se não puder verificar a versão atual, avise claramente e não apresente a resposta como definitiva. Em solicitações de explicação, análise, pesquisa, relatório ou documento, desenvolva a resposta integralmente no nível de profundidade solicitado. Não encerre no meio de um raciocínio, não substitua o conteúdo por uma introdução ou resumo e não invente conclusões para preencher lacunas. Se houver limite técnico inevitável, informe explicitamente onde o conteúdo foi interrompido e o que falta concluir. Não garanta resultado de recurso ou processo; indique quando é necessária análise jurídica individual.
 
 PROTOCOLO DE ENSINO:
 Ao criar aulas, inclua público-alvo, duração, objetivos observáveis, competências, conteúdo, sequência didática, exemplos de trânsito, atividade, avaliação e referências, ajustando ao pedido. Ao explicar um tema, comece pelo conceito, demonstre sua aplicação em situação real, relacione com segurança viária e finalize com uma síntese ou pergunta de fixação quando útil. Em simulados, identifique que as questões são autorais e não oficiais, salvo fonte comprovada. Dê gabarito comentado quando solicitado.
@@ -133,9 +133,9 @@ export async function POST(request: Request) {
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: ATLAS_INSTRUCTIONS }] },
             contents: messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-            generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: "low" } }
+            generationConfig: { maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: "medium" } }
           }),
-          signal: AbortSignal.timeout(model === modelsToTry[0] ? 12000 : 9000)
+          signal: AbortSignal.timeout(model === modelsToTry[0] ? 55000 : 35000)
         });
         if (response.ok) break;
         console.error("ATLAS Gemini provider error:", model, response.status);
