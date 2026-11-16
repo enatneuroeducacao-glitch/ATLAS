@@ -15,7 +15,7 @@ type Provider = keyof typeof MODELS;
 
 async function authorized() {
   const { data: session } = await auth.getSession();
-  const user = session?.user as (typeof session.user & { role?: string }) | undefined;
+  const user = session?.user as ({ role?: string } & Record<string, unknown>) | undefined;
   return Boolean(user && user.role === "admin");
 }
 
