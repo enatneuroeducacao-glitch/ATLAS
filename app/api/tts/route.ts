@@ -48,7 +48,7 @@ function audioFromInteraction(data: any): Buffer | null {
 }
 
 async function atlasVoiceEngine(text: string): Promise<Response | null> {
-  const url = process.env.ATLAS_VOICE_ENGINE_URL?.trim().replace(/\\/+$/, "");
+  const url = process.env.ATLAS_VOICE_ENGINE_URL?.trim().replace(/\/+$/, "");
   const token = process.env.ATLAS_VOICE_ENGINE_TOKEN?.trim();
   if (!url || !token) return null;
   try {
