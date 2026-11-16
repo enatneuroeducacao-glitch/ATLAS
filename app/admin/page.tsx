@@ -48,6 +48,13 @@ export default async function AdminPage() {
           </article>
         </section>
 
+        <section style={{ marginTop: 18, background: "#111c2e", border: "1px solid #334155", borderRadius: 14, padding: 22 }}>
+          <p style={{ color: "#93c5fd", fontWeight: 700, margin: 0 }}>PESQUISA E DESENVOLVIMENTO</p>
+          <h2 style={{ fontSize: 22, margin: "10px 0" }}>Laboratório de avaliação vocal</h2>
+          <p style={{ color: "#cbd5e1" }}>Compare mecanismos de voz com o mesmo texto, ouça as amostras e registre a avaliação antes de escolher a identidade vocal institucional do ENAT.</p>
+          <a href="/admin/voice-lab" style={{ display: "inline-block", marginTop: 8, color: "#07131a", background: "#70e4e8", borderRadius: 9, padding: "10px 14px", fontWeight: 700, textDecoration: "none" }}>Abrir laboratório vocal</a>
+        </section>
+
         <AdminUserManagement currentUserId={user.id} />
       </div>
     </main>
