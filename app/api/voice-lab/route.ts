@@ -15,7 +15,8 @@ type Provider = keyof typeof MODELS;
 
 async function authorized() {
   const { data: session } = await auth.getSession();
-  return Boolean(session?.user);
+  const user = session?.user as (typeof session.user & { role?: string }) | undefined;
+  return Boolean(user && user.role === "admin");
 }
 
 function configured(provider: Provider) {
@@ -70,7 +71,7 @@ async function requestAudio(provider: Provider, text: string): Promise<Response>
 }
 
 export async function GET() {
-  if (!(await authorized())) return NextResponse.json({ error: "Entre no ATLAS para acessar o laboratório." }, { status: 401 });
+  if (!(await authorized())) return NextResponse.json({ error: "Acesso restrito à administração do ATLAS." }, { status: 401 });
   return NextResponse.json({
     providers: (Object.keys(MODELS) as Provider[]).map(id => ({ id, name: MODELS[id], configured: configured(id), role: id === "gemini" ? "referência externa" : id === "kokoro" ? "motor próprio em avaliação" : "alternativa auto-hospedada" })),
     sampleLimit: MAX_SAMPLE_CHARS,
@@ -78,7 +79,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await authorized())) return NextResponse.json({ error: "Sessão necessária." }, { status: 401 });
+  if (!(await authorized())) return NextResponse.json({ error: "Acesso administrativo necessário." }, { status: 401 });
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
   if (origin && host && new URL(origin).host !== host) return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });
