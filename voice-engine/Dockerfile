@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /srv/atlas-voice
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    espeak-ng libsndfile1 libgomp1 ffmpeg \
+    espeak-ng libsndfile1 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY voice-engine/requirements.txt ./requirements.txt
