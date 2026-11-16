@@ -61,7 +61,7 @@ const checks = [
   ["gestão administrativa oferece pesquisa e paginação", adminUsers.includes("searchValue") && adminUsers.includes("PAGE_SIZE") && adminUsers.includes("Próxima")],
   ["Estúdio de documentos está integrado ao bate-papo", page.includes("<DocumentStudio") && page.includes("Criar documento")],
   ["Estúdio de documentos oferece modelos educacionais e institucionais", ["relatorio", "plano", "questionario", "tecnico"].every(kind => documentStudio.includes(`${kind}:`))],
-  ["Estúdio de documentos permite prévia para impressão e PDF", documentStudio.includes("window.open") && documentStudio.includes("window.print") === false && documentStudio.includes("Salvar como PDF")],
+  ["Estúdio de documentos permite prévia para impressão e PDF", documentStudio.includes("window.open") && documentStudio.includes("window.print") && documentStudio.includes("Salvar como PDF")],
   ["conteúdo do documento é escapado antes da prévia HTML", documentStudio.includes("escapeHtml") && documentStudio.includes("safeContent")],
 ];
 
