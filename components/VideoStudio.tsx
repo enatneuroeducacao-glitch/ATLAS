@@ -71,7 +71,7 @@ export default function VideoStudio(){
   if(!script.trim()||busy||rendering)return null;
   setBusy(true);setError("");setStatus("Gerando narração com a voz do ATLAS...");
   try{
-   const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:script.trim()}),signal:AbortSignal.timeout(110000)});
+   const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:script.trim()}),signal:AbortSignal.timeout(180000)});
    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Não foi possível gerar a narração.");}
    const blob=await r.blob();if(!blob.type.startsWith("audio/"))throw new Error("O serviço não retornou áudio válido.");
    const url=URL.createObjectURL(blob);
