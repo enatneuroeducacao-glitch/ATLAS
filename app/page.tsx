@@ -185,7 +185,7 @@ export default function Home() {
     });
     requestTimer.current = setTimeout(() => setSlowRequest(true), 12000);
     try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory.slice(-20) }), signal: AbortSignal.timeout(70000) });
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextHistory.slice(-20) }), signal: AbortSignal.timeout(120000) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível gerar a resposta.");
       const answer = String(data.reply || "O modelo não retornou uma resposta.");
