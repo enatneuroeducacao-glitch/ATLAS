@@ -10,10 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng libsndfile1 libgomp1 ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY voice-engine/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
+COPY voice-engine/main.py ./main.py
 RUN useradd --create-home --uid 10001 atlasvoice && \
     mkdir -p /models && chown -R atlasvoice:atlasvoice /srv/atlas-voice /models
 USER atlasvoice
