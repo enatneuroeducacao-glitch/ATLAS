@@ -1,9 +1,10 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, House, Plus, Trash2, Clock3, Film } from "lucide-react";
+import { AudioLines, Bot, Mic, MicOff, Send, ShieldCheck, GraduationCap, ClipboardList, Scale, ShieldAlert, MessageSquare, History, House, Plus, Trash2, Clock3, Film, FileText } from "lucide-react";
 import { cleanTextForSpeech } from "@/lib/speech-text";
 import AudioStudio from "@/components/AudioStudio";
 import VideoStudio from "@/components/VideoStudio";
+import DocumentStudio from "@/components/DocumentStudio";
 import AuthControls from "@/components/AuthControls";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -37,6 +38,7 @@ export default function Home() {
   const [listening, setListening] = useState(false);
   const [serviceStatus, setServiceStatus] = useState<"checking" | "ready" | "error">("checking");
   const [activeMenu, setActiveMenu] = useState("overview");
+  const [showDocumentStudio, setShowDocumentStudio] = useState(false);
   const recRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -234,7 +236,8 @@ export default function Home() {
             {history.length === 0 ? <div className="answer"><div className="botIcon"><Bot/></div><div><b>ATLAS II <small>INSTRUTOR INTELIGENTE</small></b><p>{welcome}</p></div></div> : history.map((item, index) => <div className="answer" key={index}><div className="botIcon">{item.role === "assistant" ? <Bot/> : <span>V</span>}</div><div><b>{item.role === "assistant" ? "ATLAS" : "VOCÊ"} <small>{item.role === "assistant" ? "ASSISTENTE" : "MENSAGEM"}</small></b><p>{item.content}</p></div></div>)}
             {loading && <div className="answer processing"><div className="botIcon"><Bot/></div><div><b>ATLAS</b><p>{slowRequest ? "Ainda estou elaborando a resposta. Isso pode levar alguns segundos..." : "Analisando sua pergunta e preparando a resposta..."}</p><div className="processingTrack"><span/></div></div></div>}
           </div>
-          <form onSubmit={send}><textarea id="atlas-chat-input" value={text} onChange={e => setText(e.target.value)} placeholder="Pergunte sobre CTB, legislação, aulas, direção defensiva, neuroeducação ou segurança viária…" rows={2} disabled={loading}/><div className="formFoot"><button type="button" className="voiceButton" onClick={toggleMic} disabled={loading}>{listening ? <MicOff size={16}/> : <Mic size={16}/>} {listening ? "Ouvindo…" : "Falar mensagem"}</button><button type="button" className="voiceButton" onClick={() => { setVoice(!voice); if (voice) { window.speechSynthesis?.cancel(); audioRef.current?.pause(); } }}><AudioLines size={15}/> Resposta {voice ? "falada" : "silenciosa"}</button><button className="send" disabled={loading || !text.trim()}><Send size={16}/> Enviar</button></div></form>
+          {showDocumentStudio && <DocumentStudio key={activeId} initialContent={[...history].reverse().find(item => item.role === "assistant")?.content || ""} onClose={() => setShowDocumentStudio(false)}/>}
+          <form onSubmit={send}><textarea id="atlas-chat-input" value={text} onChange={e => setText(e.target.value)} placeholder="Pergunte sobre CTB, legislação, aulas, direção defensiva, neuroeducação ou segurança viária…" rows={2} disabled={loading}/><div className="formFoot"><button type="button" className="voiceButton" onClick={() => setShowDocumentStudio(value => !value)} disabled={loading}><FileText size={16}/> {showDocumentStudio ? "Fechar documentos" : "Criar documento"}</button><button type="button" className="voiceButton" onClick={toggleMic} disabled={loading}>{listening ? <MicOff size={16}/> : <Mic size={16}/>} {listening ? "Ouvindo…" : "Falar mensagem"}</button><button type="button" className="voiceButton" onClick={() => { setVoice(!voice); if (voice) { window.speechSynthesis?.cancel(); audioRef.current?.pause(); } }}><AudioLines size={15}/> Resposta {voice ? "falada" : "silenciosa"}</button><button className="send" disabled={loading || !text.trim()}><Send size={16}/> Enviar</button></div></form>
         </section>}
         <footer>ATLAS II / INSTRUTOR INTELIGENTE <span>TRÂNSITO + LEGISLAÇÃO + NEUROEDUCAÇÃO / SEGURANÇA CONTROLADA</span></footer>
       </div>
