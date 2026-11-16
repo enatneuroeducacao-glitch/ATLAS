@@ -21,14 +21,14 @@ async function authorized() {
 
 function configured(provider: Provider) {
   if (provider === "kokoro") return Boolean(process.env.ATLAS_VOICE_ENGINE_URL?.trim() && process.env.ATLAS_VOICE_ENGINE_TOKEN?.trim());
-  if (provider === "piper") return Boolean(process.env.PIPER_TTS_URL?.trim() && process.env.PIPER_API_TOKEN?.trim());
+  if (provider === "piper") return Boolean(process.env.ATLAS_LAB_PIPER_URL?.trim() && process.env.ATLAS_LAB_PIPER_TOKEN?.trim());
   return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
 
 async function requestAudio(provider: Provider, text: string): Promise<Response> {
   if (provider === "kokoro" || provider === "piper") {
-    const base = provider === "kokoro" ? process.env.ATLAS_VOICE_ENGINE_URL : process.env.PIPER_TTS_URL;
-    const token = provider === "kokoro" ? process.env.ATLAS_VOICE_ENGINE_TOKEN : process.env.PIPER_API_TOKEN;
+    const base = provider === "kokoro" ? process.env.ATLAS_VOICE_ENGINE_URL : process.env.ATLAS_LAB_PIPER_URL;
+    const token = provider === "kokoro" ? process.env.ATLAS_VOICE_ENGINE_TOKEN : process.env.ATLAS_LAB_PIPER_TOKEN;
     const response = await fetch(`${base!.trim().replace(/\/+$/, "")}/v1/audio/speech`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
