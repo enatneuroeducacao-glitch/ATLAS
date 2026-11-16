@@ -47,6 +47,26 @@ function audioFromInteraction(data: any): Buffer | null {
   return null;
 }
 
+async function atlasVoiceEngine(text: string): Promise<Response | null> {
+  const url = process.env.ATLAS_VOICE_ENGINE_URL?.trim().replace(/\\/+$/, "");
+  const token = process.env.ATLAS_VOICE_ENGINE_TOKEN?.trim();
+  if (!url || !token) return null;
+  try {
+    const response = await fetch(`${url}/v1/audio/speech`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(180000)
+    });
+    return response.ok && (response.headers.get("content-type") || "").includes("audio/")
+      ? response
+      : null;
+  } catch (error) {
+    console.error("ATLAS Voice Engine unavailable:", error instanceof Error ? error.name : "unknown");
+    return null;
+  }
+}
+
 async function piperFallback(text: string): Promise<Response | null> {
   const url = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
   const token = process.env.PIPER_API_TOKEN?.trim();
@@ -91,6 +111,20 @@ export async function POST(request: Request) {
       return new Response(toResponseBuffer(cached.audio), { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=600", "X-ATLAS-Voice": "cache" } });
     }
     if (cached) cache.delete(key);
+
+    // First-party ENAT voice engine is the primary provider. Gemini remains optional fallback only.
+    const ownedVoice = await atlasVoiceEngine(speechText);
+    if (ownedVoice) {
+      const bytes = new Uint8Array(await ownedVoice.arrayBuffer());
+      cache.set(key, { audio: bytes, createdAt: Date.now() });
+      return new Response(toResponseBuffer(bytes), {
+        headers: {
+          "Content-Type": ownedVoice.headers.get("content-type") || "audio/wav",
+          "Cache-Control": "private, max-age=600",
+          "X-ATLAS-Voice": "atlas-voice-engine"
+        }
+      });
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
