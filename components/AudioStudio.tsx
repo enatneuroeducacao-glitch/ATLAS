@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AudioLines, Download, Mic2, RefreshCw, Volume2 } from "lucide-react";
 
-const MAX_CHARS = 10000;
+const MAX_CHARS = 30000;
 
 export default function AudioStudio() {
   const [script, setScript] = useState("");
@@ -27,7 +27,7 @@ export default function AudioStudio() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: value }),
-        signal: AbortSignal.timeout(110000)
+        signal: AbortSignal.timeout(180000)
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -47,13 +47,13 @@ export default function AudioStudio() {
   return <section className="audioStudio">
     <header className="studioHeading">
       <div className="studioIcon"><AudioLines size={23}/></div>
-      <div><span>ATLAS II / PRODUÇÃO DE CONTEÚDO</span><h2>Estúdio de áudio</h2><p>Transforme seus textos em narrações com a voz atual do ATLAS.</p></div>
+      <div><span>ATLAS II / PRODUÇÃO DE CONTEÚDO</span><h2>Estúdio de áudio</h2><p>Transforme textos extensos em narrações com o motor neural de voz do ATLAS.</p></div>
     </header>
     <div className="studioGrid">
       <div className="studioEditor">
         <label htmlFor="studio-script">Texto para narração</label>
         <textarea id="studio-script" value={script} onChange={e => setScript(e.target.value.slice(0, MAX_CHARS))} placeholder="Cole ou escreva o texto que deseja transformar em áudio..." maxLength={MAX_CHARS}/>
-        <div className="studioMeta"><span>Português brasileiro · Voz neural atual do ATLAS</span><span>{script.length.toLocaleString("pt-BR")} / {MAX_CHARS.toLocaleString("pt-BR")} caracteres</span></div>
+        <div className="studioMeta"><span>Português brasileiro · Motor neural de voz do ATLAS</span><span>{script.length.toLocaleString("pt-BR")} / {MAX_CHARS.toLocaleString("pt-BR")} caracteres</span></div>
         <button type="button" className="studioGenerate" onClick={generate} disabled={!script.trim() || busy}>
           {busy ? <><RefreshCw size={16} className="studioSpin"/> Gerando narração...</> : <><Mic2 size={16}/> Gerar áudio</>}
         </button>
@@ -70,6 +70,6 @@ export default function AudioStudio() {
         </div> : <small className="studioHint">A gravação utiliza o mesmo mecanismo de voz do ATLAS II.</small>}
       </div>
     </div>
-    <div className="studioNote"><AudioLines size={15}/><span>A voz, a identidade sonora e as orientações de pronúncia são as mesmas já aprovadas para o ATLAS. O serviço respeita a cota gratuita disponível; não há integração com provedor pago.</span></div>
+    <div className="studioNote"><AudioLines size={15}/><span>A voz, a identidade sonora e as orientações de pronúncia são as mesmas já aprovadas para o ATLAS. A geração utiliza o motor neural próprio do ENAT quando configurado, sem depender de cotas de provedores externos.</span></div>
   </section>;
 }
