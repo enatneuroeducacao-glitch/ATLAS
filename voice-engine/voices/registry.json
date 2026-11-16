@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "default_voice": "pm_santa",
+  "voices": [
+    {
+      "id": "pm_santa",
+      "provider": "kokoro-82m",
+      "language": "pt-BR",
+      "gender_presentation": "masculina",
+      "status": "evaluation_only",
+      "institutional_owner": false,
+      "consent_record": null,
+      "notes": "Voz predefinida do modelo, apenas para testes de engenharia. Não representa a voz institucional do ENAT."
+    },
+    {
+      "id": "pm_alex",
+      "provider": "kokoro-82m",
+      "language": "pt-BR",
+      "gender_presentation": "masculina",
+      "status": "evaluation_only",
+      "institutional_owner": false,
+      "consent_record": null,
+      "notes": "Voz predefinida do modelo, apenas para testes de engenharia. Não representa a voz institucional do ENAT."
+    }
+  ],
+  "institutional_voice": {
+    "id": null,
+    "status": "not_created",
+    "required_before_activation": [
+      "speaker_identity_and_explicit_written_consent",
+      "recording_usage_and_distribution_rights",
+      "source_audio_and_exact_transcripts",
+      "training_data_license_review",
+      "quality_and_similarity_acceptance_tests",
+      "revocation_and_deletion_procedure"
+    ]
+  }
+}
