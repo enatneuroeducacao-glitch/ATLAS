@@ -38,12 +38,35 @@ export default function DocumentStudio({ initialContent = "", onClose }: { initi
   const [title, setTitle] = useState(templates.relatorio.title);
   const [content, setContent] = useState(initialContent.trim() || templates.relatorio.body);
   const [status, setStatus] = useState("");
+  const [reference, setReference] = useState(initialContent);
+  const [generating, setGenerating] = useState(false);
 
   function changeKind(next: DocumentKind) {
     setKind(next);
     setTitle(templates[next].title);
     setContent(templates[next].body);
     setStatus("");
+  }
+
+  async function generateCompleteDocument() {
+    setGenerating(true);
+    setStatus("O ATLAS está elaborando o documento completo. Aguarde…");
+    try {
+      const response = await fetch("/api/documents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, title, content, reference }),
+        signal: AbortSignal.timeout(100000),
+      });
+      const data = await response.json() as { content?: string; error?: string };
+      if (!response.ok || !data.content) throw new Error(data.error || "Não foi possível gerar o documento completo.");
+      setContent(data.content);
+      setStatus("Documento integral elaborado. Revise os dados e as referências antes de salvar em PDF.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Falha ao gerar o documento.");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   const printable = useMemo(() => {
@@ -95,12 +118,12 @@ export default function DocumentStudio({ initialContent = "", onClose }: { initi
         <input value={title} onChange={event => setTitle(event.target.value)} maxLength={140}/>
       </label>
     </div>
-    <label className="documentContentLabel" htmlFor="atlas-document-content">Conteúdo do documento</label>
+    <label className="documentContentLabel" htmlFor="atlas-document-reference">Pedido e material de referência (o ATLAS utilizará estas informações para elaborar o documento completo)</label>\n    <textarea id="atlas-document-reference" className="documentReference" value={reference} onChange={event => setReference(event.target.value)} rows={5} placeholder="Descreva o objetivo, público, tema, duração, dados, resultados ou cole o conteúdo que deve servir de base. Não inclua dados pessoais desnecessários."/>\n    <div className="documentGenerateRow"><button type="button" className="documentPrimary" onClick={generateCompleteDocument} disabled={generating || !title.trim()}>{generating ? "Elaborando documento completo…" : "Gerar documento completo com ATLAS"}</button><span>Preenche e desenvolve todas as seções com base no pedido e nas referências.</span></div>\n    <label className="documentContentLabel" htmlFor="atlas-document-content">Documento integral — revise antes de exportar</label>
     <textarea id="atlas-document-content" className="documentContent" value={content} onChange={event => setContent(event.target.value)} rows={16}/>
     {kind === "questionario" && <p className="documentCaution">Atenção: o modelo não inventa itens oficiais nem regras de pontuação. Insira a versão metodológica autorizada do HSI/HSI-DOTH-P antes da aplicação.</p>}
     <div className="documentActions">
-      <button type="button" className="documentPrimary" onClick={openPreview} disabled={!title.trim() || !content.trim()}><Printer size={16}/> Pré-visualizar / Salvar PDF</button>
-      <button type="button" className="documentSecondary" onClick={downloadText} disabled={!content.trim()}><Download size={16}/> Baixar TXT</button>
+      <button type="button" className="documentPrimary" onClick={openPreview} disabled={generating || !title.trim() || !content.trim()}><Printer size={16}/> Pré-visualizar / Salvar PDF</button>
+      <button type="button" className="documentSecondary" onClick={downloadText} disabled={generating || !content.trim()}><Download size={16}/> Baixar TXT</button>
     </div>
     {status && <p className="documentStatus" role="status">{status}</p>}
   </section>;

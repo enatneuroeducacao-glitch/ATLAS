@@ -26,6 +26,7 @@ const adminPage = read("app/admin/page.tsx");
 const adminUsers = read("components/AdminUserManagement.tsx");
 const authControls = read("components/AuthControls.tsx");
 const documentStudio = read("components/DocumentStudio.tsx");
+const documentGeneration = read("app/api/documents/generate/route.ts");
 
 const checks = [
   ["interface principal continua usando o endpoint de chat", page.includes('fetch("/api/chat"')],
@@ -63,6 +64,10 @@ const checks = [
   ["Estúdio de documentos oferece modelos educacionais e institucionais", ["relatorio", "plano", "questionario", "tecnico"].every(kind => documentStudio.includes(`${kind}:`))],
   ["Estúdio de documentos permite prévia para impressão e PDF", documentStudio.includes("window.open") && documentStudio.includes("window.print") && documentStudio.includes("Salvar como PDF")],
   ["conteúdo do documento é escapado antes da prévia HTML", documentStudio.includes("escapeHtml") && documentStudio.includes("safeContent")],
+  ["Estúdio oferece geração integral com IA a partir do contexto", documentStudio.includes("Gerar documento completo com ATLAS") && documentStudio.includes("reference") && documentStudio.includes("/api/documents/generate")],
+  ["geração documental exige sessão e valida tipo e tamanho", documentGeneration.includes("auth.getSession()") && documentGeneration.includes("allowedKinds") && documentGeneration.includes("24_000")],
+  ["geração documental usa limite ampliado e detecta truncamento", documentGeneration.includes("maxOutputTokens: 8192") && documentGeneration.includes("MAX_TOKENS")],
+  ["geração documental preserva limites metodológicos HSI", documentGeneration.includes("não invente itens oficiais") && documentGeneration.includes("validação psicométrica")],
 ];
 
 let failures = 0;
