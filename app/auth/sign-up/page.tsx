@@ -25,7 +25,7 @@ export default function SignUpPage() {
         const otpResult = await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" });
         if (otpResult.error) throw new Error(otpResult.error.message || "Conta criada, mas não foi possível enviar o código de confirmação.");
         setStep("verify");
-        setMessage("Enviamos um código de confirmação para seu e-mail. Informe o código para ativar sua conta.");
+        setMessage("O Neon Auth enviou um código de confirmação para seu e-mail. O ATLAS não envia essa mensagem. Confira também a pasta de spam.");
       } else {
         router.replace("/");
         router.refresh();
@@ -52,7 +52,7 @@ export default function SignUpPage() {
     try {
       const result=await authClient.emailOtp.sendVerificationOtp({email,type:"email-verification"});
       if(result.error) throw new Error(result.error.message||"Não foi possível reenviar o código.");
-      setMessage("Solicitação de reenvio realizada. Confira sua caixa de entrada e o spam.");
+      setMessage("O reenvio foi solicitado ao Neon Auth. Confira sua caixa de entrada e a pasta de spam.");
     } catch(e){setError(e instanceof Error?e.message:"Falha ao reenviar o código.");}
     finally{setBusy(false);}
   }
@@ -61,7 +61,13 @@ export default function SignUpPage() {
     <section style={{width:"min(100%,420px)",background:"#101e30",border:"1px solid #263a53",borderRadius:20,padding:32}}>
       <div style={{fontSize:12,letterSpacing:3,color:"#8ba9c9",fontWeight:700}}>ENAT · INSTRUTOR INTELIGENTE</div>
       <h1 style={{fontSize:30,margin:"12px 0 6px"}}>{step==="verify"?"Confirmar e-mail":"Criar conta"}</h1>
-      <p style={{color:"#a9bbd0",marginBottom:24}}>{step==="verify"?`Informe o código enviado para ${email}.`:"Cadastre-se para acessar o ATLAS."}</p>
+      <p style={{color:"#a9bbd0",marginBottom:16}}>{step==="verify"?`Informe o código enviado para ${email}.`:"Cadastre-se para acessar o ATLAS."}</p>
+      {step==="signup"&&<div role="note" style={{padding:12,marginBottom:16,borderRadius:10,border:"1px solid #36516e",background:"#0b1a2b",color:"#c5d8ec",fontSize:13,lineHeight:1.5}}>
+        <strong style={{color:"#9dd6ff"}}>Aviso sobre a confirmação:</strong> após o cadastro, o código de autenticação será enviado pelo <strong>Neon Auth</strong> ao e-mail informado. A mensagem de confirmação não será enviada pelo ATLAS. Verifique também a pasta de spam ou lixo eletrônico.
+      </div>}
+      {step==="verify"&&<div role="note" style={{padding:12,marginBottom:16,borderRadius:10,border:"1px solid #36516e",background:"#0b1a2b",color:"#c5d8ec",fontSize:13,lineHeight:1.5}}>
+        <strong style={{color:"#9dd6ff"}}>Quem enviou o código?</strong> O código foi enviado pelo serviço de autenticação <strong>Neon Auth</strong>, e não pelo ATLAS. O remetente pode aparecer como <strong>Neon Auth (auth@mail.myneon.app)</strong>. Se não encontrar a mensagem, confira o spam ou lixo eletrônico.
+      </div>}
       {step==="signup"?<form onSubmit={submit} style={{display:"grid",gap:12}}>
         <label style={{display:"grid",gap:6}}>Nome<input required value={name} onChange={e=>setName(e.target.value)} style={field}/></label>
         <label style={{display:"grid",gap:6}}>E-mail<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} style={field}/></label>
