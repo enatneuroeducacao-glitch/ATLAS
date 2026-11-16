@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 APP_NAME = "ATLAS VOICE ENGINE"
 API_TOKEN = os.getenv("ATLAS_VOICE_ENGINE_TOKEN", "").strip()
 VOICE_ID = os.getenv("ATLAS_VOICE_ID", "pm_santa").strip()
+ALLOWED_VOICES = {v.strip() for v in os.getenv("ATLAS_ALLOWED_VOICES", "pm_santa,pm_alex").split(",") if v.strip()}
 LANG_CODE = os.getenv("ATLAS_VOICE_LANGUAGE", "p").strip()
 MAX_TEXT_CHARS = int(os.getenv("ATLAS_VOICE_MAX_CHARS", "30000"))
 CHUNK_TARGET_CHARS = int(os.getenv("ATLAS_VOICE_CHUNK_CHARS", "650"))
@@ -127,6 +128,8 @@ def speech(payload: SpeechRequest, authorization: str | None = Header(default=No
         raise HTTPException(status_code=413, detail=f"Limite de {MAX_TEXT_CHARS} caracteres excedido.")
 
     voice = (payload.voice or VOICE_ID).strip()
+    if voice not in ALLOWED_VOICES:
+        raise HTTPException(status_code=400, detail="Voz não cadastrada no banco autorizado do ATLAS.")
     speed = payload.speed if payload.speed is not None else SPEED
     try:
         pipeline = get_pipeline()
