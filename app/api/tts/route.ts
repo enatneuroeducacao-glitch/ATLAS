@@ -13,6 +13,11 @@ const MAX_TTS_CHARS = 30000;
 const CACHE_TTL = 10 * 60_000;
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
 
+function isWav(bytes: Uint8Array): boolean {
+  return bytes.length >= 44 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45;
+}
 function toResponseBuffer(bytes: Uint8Array): ArrayBuffer {
   const buffer = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buffer).set(bytes);
@@ -58,9 +63,9 @@ async function atlasVoiceEngine(text: string): Promise<Response | null> {
       body: JSON.stringify({ text }),
       signal: AbortSignal.timeout(180000)
     });
-    return response.ok && (response.headers.get("content-type") || "").includes("audio/")
-      ? response
-      : null;
+    if (!response.ok || !(response.headers.get("content-type") || "").toLowerCase().includes("audio/")) return null;
+    const bytes = new Uint8Array(await response.clone().arrayBuffer());
+    return isWav(bytes) ? response : null;
   } catch (error) {
     console.error("ATLAS Voice Engine unavailable:", error instanceof Error ? error.name : "unknown");
     return null;
@@ -78,7 +83,9 @@ async function piperFallback(text: string): Promise<Response | null> {
       body: JSON.stringify({ text }),
       signal: AbortSignal.timeout(45000)
     });
-    return response.ok && (response.headers.get("content-type") || "").includes("audio/") ? response : null;
+    if (!response.ok || !(response.headers.get("content-type") || "").toLowerCase().includes("audio/")) return null;
+    const bytes = new Uint8Array(await response.clone().arrayBuffer());
+    return isWav(bytes) ? response : null;
   } catch {
     return null;
   }
@@ -153,7 +160,7 @@ export async function POST(request: Request) {
         if (response.ok) {
           const data = await response.json();
           const audio = audioFromInteraction(data);
-          if (audio?.length) {
+          if (audio?.length && isWav(new Uint8Array(audio))) {
             const bytes = new Uint8Array(audio);
             cache.set(key, { audio: bytes, createdAt: Date.now() });
             if (cache.size > 40) {
@@ -176,7 +183,10 @@ export async function POST(request: Request) {
     const piper = await piperFallback(speechText);
     if (piper) {
       const bytes = new Uint8Array(await piper.arrayBuffer());
-      return new Response(toResponseBuffer(bytes), { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=300", "X-ATLAS-Voice": "piper-fallback" } });
+      if (isWav(bytes)) {
+        return new Response(toResponseBuffer(bytes), { headers: { "Content-Type": "audio/wav", "Cache-Control": "private, max-age=300", "X-ATLAS-Voice": "piper-fallback" } });
+      }
+      console.error("ATLAS Piper returned a non-WAV payload");
     }
     return NextResponse.json({
       error: "A voz neural gratuita está temporariamente indisponível. O texto da resposta foi preservado; tente reproduzir novamente mais tarde."
