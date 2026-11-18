@@ -73,8 +73,11 @@ export default function VideoStudio(){
   try{
    const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:script.trim()}),signal:AbortSignal.timeout(180000)});
    if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Não foi possível gerar a narração.");}
-   const blob=await r.blob();if(!blob.type.startsWith("audio/"))throw new Error("O serviço não retornou áudio válido.");
-   const url=URL.createObjectURL(blob);
+   const blob=await r.blob();
+   const wavBytes=new Uint8Array(await blob.arrayBuffer());
+   const isWav=wavBytes.length>=44&&wavBytes[0]===0x52&&wavBytes[1]===0x49&&wavBytes[2]===0x46&&wavBytes[3]===0x46&&wavBytes[8]===0x57&&wavBytes[9]===0x41&&wavBytes[10]===0x56&&wavBytes[11]===0x45;
+   if(!blob.type.toLowerCase().includes("wav")||!isWav)throw new Error("O serviço não retornou um WAV válido. Nenhum outro formato será aceito.");
+   const url=URL.createObjectURL(new Blob([wavBytes],{type:"audio/wav"}));
    const probe=new Audio(url);
    const seconds=await new Promise<number>((resolve,reject)=>{probe.onloadedmetadata=()=>resolve(probe.duration);probe.onerror=()=>reject(new Error("Não foi possível ler a duração do áudio."));});
    if(audioUrlRef.current)URL.revokeObjectURL(audioUrlRef.current);
@@ -267,7 +270,7 @@ export default function VideoStudio(){
     <div className="videoSectionTitle"><b>1. Texto para narração</b><small>{script.length.toLocaleString("pt-BR")} / {MAX_SCRIPT}</small></div>
     <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>updateScript(e.target.value)} disabled={!scriptRestored} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>\n    <div className="videoScriptSaveStatus" role="status"><span className="videoScriptSaveDot"/> {scriptSaveStatus}</div>
     <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={()=>void generateAudio()}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando narração...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração</>}</button>
-    {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio className="videoAudioPreview" controls src={audioUrl}/></div>}
+    {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio className="videoAudioPreview" controls src={audioUrl}/><a className="studioDownload" href={audioUrl} download={"atlas-narracao-"+Date.now()+".wav"}><Download size={16}/> Baixar narração WAV</a></div>}
     <div className="videoProductionModes">
      <div className="videoSectionTitle"><b>2. Modo de produção</b><small>Escolha como deseja concluir</small></div>
      <div className="videoModeChoices">
