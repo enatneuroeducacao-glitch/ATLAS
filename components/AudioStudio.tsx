@@ -34,8 +34,14 @@ export default function AudioStudio() {
         throw new Error(data.error || "Não foi possível gerar o áudio. Tente novamente.");
       }
       const blob = await response.blob();
-      if (!blob.type.startsWith("audio/")) throw new Error("O serviço não retornou um arquivo de áudio válido.");
-      setAudioUrl(URL.createObjectURL(blob));
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const isWav = bytes.length >= 44 &&
+        bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+        bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45;
+      if (!blob.type.toLowerCase().includes("wav") || !isWav) {
+        throw new Error("O serviço não retornou um WAV válido. Nenhum outro formato será aceito.");
+      }
+      setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: "audio/wav" })));
       setCreatedAt(new Date().toLocaleString("pt-BR"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao gerar áudio.");
