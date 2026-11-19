@@ -54,6 +54,13 @@ function audioFromInteraction(data: any): Buffer | null {
   return null;
 }
 
+class GeminiRateLimitError extends Error {
+  constructor() {
+    super("Limite temporário de solicitações do Gemini atingido.");
+    this.name = "GeminiRateLimitError";
+  }
+}
+
 async function requestGeminiSpeech(apiKey: string, text: string, model: string): Promise<Uint8Array | null> {
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
@@ -80,6 +87,7 @@ async function requestGeminiSpeech(apiKey: string, text: string, model: string):
   if (!response.ok) {
     const detail = (await response.clone().text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 400);
     console.error("ATLAS Gemini TTS provider error:", model, response.status, detail);
+    if (response.status === 429) throw new GeminiRateLimitError();
     return null;
   }
 
@@ -153,14 +161,25 @@ export async function POST(request: Request) {
     // Gemini is the only speech provider. Kokoro and Piper are intentionally not called.
     const models = [...new Set([PRIMARY_MODEL, FALLBACK_MODEL])];
     let audio: Uint8Array | null = null;
+    let rateLimited = false;
 
     for (const model of models) {
       try {
         audio = await requestGeminiSpeech(apiKey, speechText, model);
         if (audio) break;
       } catch (error) {
+        if (error instanceof GeminiRateLimitError) {
+          rateLimited = true;
+          break;
+        }
         console.error("ATLAS Gemini TTS request failed:", model, error instanceof Error ? error.name : "unknown");
       }
+    }
+
+    if (rateLimited) {
+      return NextResponse.json({
+        error: "O Gemini atingiu o limite temporário de solicitações. Aguarde a liberação da cota. O ATLAS preservou o texto e os blocos de áudio já concluídos."
+      }, { status: 429 });
     }
 
     if (!audio) {
