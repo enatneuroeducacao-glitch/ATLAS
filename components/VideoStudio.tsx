@@ -76,7 +76,9 @@ export default function VideoStudio(){
    const chunks=splitSpeechText(script.trim());
    setNarrationProgress({completed:0,total:chunks.length,percent:0,current:1});
    const wavBytes=await generateLongSpeech(script.trim(),setNarrationProgress);
-   const url=URL.createObjectURL(new Blob([wavBytes],{type:"audio/wav"}));
+   const audioBuffer=new ArrayBuffer(wavBytes.byteLength);
+   new Uint8Array(audioBuffer).set(wavBytes);
+   const url=URL.createObjectURL(new Blob([audioBuffer],{type:"audio/wav"}));
    const probe=new Audio(url);
    const seconds=await new Promise<number>((resolve,reject)=>{probe.onloadedmetadata=()=>resolve(probe.duration);probe.onerror=()=>reject(new Error("Não foi possível ler a duração do áudio."));});
    if(audioUrlRef.current)URL.revokeObjectURL(audioUrlRef.current);
