@@ -2,8 +2,8 @@ export type TtsProgress = { completed: number; total: number; percent: number; c
 
 type ResumeJob = { source: string; chunks: string[]; audio: Uint8Array[] };
 
-const TARGET_CHARS = 2200;
-const MAX_CHARS = 2800;
+const TARGET_CHARS = 1400;
+const MAX_CHARS = 1800;
 const jobs = new Map<string, ResumeJob>();
 
 function splitLongUnit(value: string): string[] {
