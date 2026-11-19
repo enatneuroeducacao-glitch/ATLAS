@@ -2,8 +2,8 @@ export type TtsProgress = { completed: number; total: number; percent: number; c
 
 type ResumeJob = { source: string; chunks: string[]; audio: Uint8Array[] };
 
-const TARGET_CHARS = 1400;
-const MAX_CHARS = 1800;
+const TARGET_CHARS = 3200;
+const MAX_CHARS = 3600;
 const jobs = new Map<string, ResumeJob>();
 
 function splitLongUnit(value: string): string[] {
@@ -30,23 +30,25 @@ function splitLongUnit(value: string): string[] {
 export function splitSpeechText(input: string): string[] {
   const paragraphs = input.replace(/\r\n?/g, "\n").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const chunks: string[] = [];
+  let current = "";
+  const flush = () => {
+    if (current.trim()) chunks.push(current.trim());
+    current = "";
+  };
   for (const paragraph of paragraphs.length ? paragraphs : [input.trim()]) {
     const sentences = paragraph.match(/[^.!?]+[.!?]+["'”’)]*|[^.!?]+$/g) || [paragraph];
-    let current = "";
-    const flush = () => {
-      if (current.trim()) chunks.push(current.trim());
-      current = "";
-    };
     for (const sentence of sentences.map(s => s.trim()).filter(Boolean)) {
       const units = sentence.length <= TARGET_CHARS ? [sentence] : splitLongUnit(sentence);
       for (const unit of units) {
-        const next = current ? current + " " + unit : unit;
+        const separator = current ? (current.endsWith("\n\n") ? "" : " ") : "";
+        const next = current + separator + unit;
         if (next.length > MAX_CHARS && current) flush();
-        current = current ? current + " " + unit : unit;
+        current = current ? current + (current.endsWith("\n\n") ? "" : " ") + unit : unit;
       }
     }
-    flush();
+    if (current && !current.endsWith("\n\n")) current += "\n\n";
   }
+  flush();
   return chunks;
 }
 
@@ -135,6 +137,7 @@ export async function generateLongSpeech(
   }
   for (let index = job.audio.length; index < job.chunks.length; index++) {
     onProgress({ completed: index, total: job.chunks.length, percent: Math.round(index / job.chunks.length * 100), current: index + 1 });
+    if (index > 0) await new Promise(resolve => setTimeout(resolve, 21_000));
     const response = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -143,7 +146,8 @@ export async function generateLongSpeech(
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new Error("Bloco " + (index + 1) + " de " + job.chunks.length + ": " + (data.error || "falha na geração. O texto e os blocos anteriores foram preservados; tente novamente para continuar deste ponto."));
+      const limitMessage = response.status === 429 ? "O Gemini atingiu o limite de solicitações. Os blocos concluídos foram preservados; aguarde a liberação da cota e continue." : (data.error || "falha na geração. O texto e os blocos anteriores foram preservados; tente novamente para continuar deste ponto.");
+      throw new Error("Bloco " + (index + 1) + " de " + job.chunks.length + ": " + limitMessage);
     }
     const blob = await response.blob();
     if (!blob.type.toLowerCase().includes("wav")) {
