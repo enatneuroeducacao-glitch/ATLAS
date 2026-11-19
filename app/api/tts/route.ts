@@ -11,8 +11,9 @@ const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 const MAX_TTS_CHARS = 30_000;
 const CACHE_TTL = 10 * 60_000;
-const PRIMARY_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
-const FALLBACK_MODEL = process.env.GEMINI_TTS_FALLBACK_MODEL || "gemini-3.8-flash-tts";
+const PRIMARY_MODEL = "gemini-3.8-flash-tts";
+const FALLBACK_MODEL = "gemini-3.8-flash-lite-tts";
+const modelCooldowns = new Map<string, number>();
 
 function isWav(bytes: Uint8Array): boolean {
   return bytes.length >= 44 &&
@@ -55,10 +56,51 @@ function audioFromInteraction(data: any): Buffer | null {
 }
 
 class GeminiRateLimitError extends Error {
-  constructor() {
+  cooldownMs: number;
+  constructor(cooldownMs: number) {
     super("Limite temporário de solicitações do Gemini atingido.");
     this.name = "GeminiRateLimitError";
+    this.cooldownMs = cooldownMs;
   }
+}
+
+function parseRetryDelay(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = value.match(/^(\\d+(?:\\.\\d+)?)(ms|s|m|h)$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  return amount * (unit === "ms" ? 1 : unit === "s" ? 1000 : unit === "m" ? 60_000 : 3_600_000);
+}
+
+function getQuotaCooldown(response: Response, errorText: string): number {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+    const date = Date.parse(retryAfter);
+    if (Number.isFinite(date) && date > Date.now()) return date - Date.now();
+  }
+
+  try {
+    const payload = JSON.parse(errorText);
+    const details = JSON.stringify(payload?.error?.details ?? payload);
+    const retryInfo = payload?.error?.details?.find?.((item: any) =>
+      item?.["@type"]?.includes("RetryInfo")
+    );
+    const retryDelay = parseRetryDelay(retryInfo?.retryDelay);
+    if (retryDelay) return retryDelay;
+    const quotaText = (details + " " + errorText).toLowerCase();
+    if (/per.?day|requests.?per.?day|daily.?quota|rpd/.test(quotaText)) {
+      const nextUtcDay = new Date();
+      nextUtcDay.setUTCHours(24, 5, 0, 0);
+      return Math.max(60_000, nextUtcDay.getTime() - Date.now());
+    }
+    if (/per.?minute|requests.?per.?minute|rpm/.test(quotaText)) return 60_000;
+  } catch {
+    // Use a conservative short cooldown when the provider does not return structured details.
+  }
+  return 5 * 60_000;
 }
 
 async function requestGeminiSpeech(apiKey: string, text: string, model: string): Promise<Uint8Array | null> {
@@ -85,9 +127,10 @@ async function requestGeminiSpeech(apiKey: string, text: string, model: string):
   });
 
   if (!response.ok) {
-    const detail = (await response.clone().text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 400);
+    const rawError = await response.text().catch(() => "");
+    const detail = rawError.replace(/[\\r\\n\\t]+/g, " ").slice(0, 400);
     console.error("ATLAS Gemini TTS provider error:", model, response.status, detail);
-    if (response.status === 429) throw new GeminiRateLimitError();
+    if (response.status === 429) throw new GeminiRateLimitError(getQuotaCooldown(response, rawError));
     return null;
   }
 
@@ -159,27 +202,47 @@ export async function POST(request: Request) {
     if (cached) cache.delete(key);
 
     // Gemini is the only speech provider. Kokoro and Piper are intentionally not called.
-    const models = [...new Set([PRIMARY_MODEL, FALLBACK_MODEL])];
+    const models = [...new Set([PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean))];
     let audio: Uint8Array | null = null;
-    let rateLimited = false;
+    const now = Date.now();
+    const blockedUntil: number[] = [];
+    const availableModels = models.filter(model => {
+      const until = modelCooldowns.get(model) || 0;
+      if (until > now) {
+        blockedUntil.push(until);
+        return false;
+      }
+      if (until) modelCooldowns.delete(model);
+      return true;
+    });
 
-    for (const model of models) {
+    for (const model of availableModels) {
       try {
         audio = await requestGeminiSpeech(apiKey, speechText, model);
-        if (audio) break;
+        if (audio) {
+          modelCooldowns.delete(model);
+          break;
+        }
       } catch (error) {
         if (error instanceof GeminiRateLimitError) {
-          rateLimited = true;
-          break;
+          const until = Date.now() + error.cooldownMs;
+          modelCooldowns.set(model, until);
+          blockedUntil.push(until);
+          console.warn("ATLAS Gemini TTS model cooling down:", model, Math.ceil(error.cooldownMs / 1000), "seconds");
+          continue;
         }
         console.error("ATLAS Gemini TTS request failed:", model, error instanceof Error ? error.name : "unknown");
       }
     }
 
-    if (rateLimited) {
+    if (!audio && blockedUntil.length) {
+      const retryAt = Math.min(...blockedUntil);
+      const retryInSeconds = Math.max(1, Math.ceil((retryAt - Date.now()) / 1000));
       return NextResponse.json({
-        error: "O Gemini atingiu o limite temporário de solicitações. Aguarde a liberação da cota. O ATLAS preservou o texto e os blocos de áudio já concluídos."
-      }, { status: 429 });
+        error: "Os modelos de voz estão temporariamente limitados. O ATLAS não fará novas chamadas antes da próxima janela disponível.",
+        retryAfterSeconds: retryInSeconds,
+        retryAt: new Date(retryAt).toISOString()
+      }, { status: 429, headers: { "Retry-After": String(retryInSeconds) } });
     }
 
     if (!audio) {
