@@ -28,7 +28,9 @@ export default function AudioStudio() {
       const chunks = splitSpeechText(value);
       setProgress({ completed: 0, total: chunks.length, percent: 0, current: 1 });
       const bytes = await generateLongSpeech(value, setProgress);
-      setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: "audio/wav" })));
+      const audioBuffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(audioBuffer).set(bytes);
+      setAudioUrl(URL.createObjectURL(new Blob([audioBuffer], { type: "audio/wav" })));
       setCreatedAt(new Date().toLocaleString("pt-BR"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao gerar áudio.");
