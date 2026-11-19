@@ -29,24 +29,24 @@ function splitLongUnit(value: string): string[] {
 
 export function splitSpeechText(input: string): string[] {
   const paragraphs = input.replace(/\r\n?/g, "\n").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  const units: string[] = [];
+  const chunks: string[] = [];
   for (const paragraph of paragraphs.length ? paragraphs : [input.trim()]) {
     const sentences = paragraph.match(/[^.!?]+[.!?]+["'”’)]*|[^.!?]+$/g) || [paragraph];
+    let current = "";
+    const flush = () => {
+      if (current.trim()) chunks.push(current.trim());
+      current = "";
+    };
     for (const sentence of sentences.map(s => s.trim()).filter(Boolean)) {
-      if (sentence.length <= TARGET_CHARS) units.push(sentence);
-      else units.push(...splitLongUnit(sentence));
+      const units = sentence.length <= TARGET_CHARS ? [sentence] : splitLongUnit(sentence);
+      for (const unit of units) {
+        const next = current ? current + " " + unit : unit;
+        if (next.length > MAX_CHARS && current) flush();
+        current = current ? current + " " + unit : unit;
+      }
     }
+    flush();
   }
-  const chunks: string[] = [];
-  let current = "";
-  for (const unit of units) {
-    const next = current ? current + " " + unit : unit;
-    if (next.length > MAX_CHARS && current) {
-      chunks.push(current.trim());
-      current = unit;
-    } else current = next;
-  }
-  if (current.trim()) chunks.push(current.trim());
   return chunks;
 }
 
@@ -83,7 +83,15 @@ export function mergeWavChunks(chunks: Uint8Array[]): Uint8Array {
       throw new Error("O Gemini retornou parâmetros de áudio diferentes entre blocos. Os trechos foram preservados para nova tentativa.");
     }
   }
-  const audioLength = parsed.reduce((sum, item) => sum + item.audio.length, 0);
+  const blockAlign = new DataView(format.buffer, format.byteOffset, format.byteLength).getUint16(12, true);
+  const sampleRate = new DataView(format.buffer, format.byteOffset, format.byteLength).getUint32(4, true);
+  const bitsPerSample = new DataView(format.buffer, format.byteOffset, format.byteLength).getUint16(14, true);
+  const audioFormat = new DataView(format.buffer, format.byteOffset, format.byteLength).getUint16(0, true);
+  if (!blockAlign || !sampleRate || !bitsPerSample || ![1, 3].includes(audioFormat)) {
+    throw new Error("O formato WAV do Gemini não é PCM compatível para união sem perdas.");
+  }
+  const silenceLength = Math.floor(sampleRate * 0.12) * blockAlign;
+  const audioLength = parsed.reduce((sum, item, index) => sum + item.audio.length + (index < parsed.length - 1 ? silenceLength : 0), 0);
   const output = new Uint8Array(12 + 8 + format.length + 8 + audioLength);
   const view = new DataView(output.buffer);
   const write = (offset: number, value: string) => {
@@ -99,9 +107,16 @@ export function mergeWavChunks(chunks: Uint8Array[]): Uint8Array {
   write(dataHeader, "data");
   view.setUint32(dataHeader + 4, audioLength, true);
   let cursor = dataHeader + 8;
-  for (const item of parsed) {
+  for (let index = 0; index < parsed.length; index++) {
+    const item = parsed[index];
     output.set(item.audio, cursor);
     cursor += item.audio.length;
+    if (index < parsed.length - 1 && silenceLength > 0) {
+      const silence = new Uint8Array(silenceLength);
+      if (audioFormat === 1 && bitsPerSample === 8) silence.fill(0x80);
+      output.set(silence, cursor);
+      cursor += silence.length;
+    }
   }
   return output;
 }
