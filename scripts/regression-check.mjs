@@ -12,6 +12,7 @@ const tts = read("app/api/tts/route.ts");
 const health = read("app/api/health/route.ts");
 const speech = read("lib/speech-text.ts");
 const audioStudio = read("components/AudioStudio.tsx");
+const ttsClient = read("lib/tts-client.ts");
 const videoStudio = read("components/VideoStudio.tsx");
 const knowledge = read("lib/enat-knowledge.ts");
 const authServer = read("lib/auth/server.ts");
@@ -42,7 +43,7 @@ const checks = [
   ["interface principal continua usando o endpoint de voz", page.includes('fetch("/api/tts"')],
   ["reconhecimento de voz do navegador continua presente", page.includes("SpeechRecognition") && page.includes("webkitSpeechRecognition")],
   ["histórico atual e chave legada continuam preservados", page.includes("atlas-conversations-v2") && page.includes("atlas-conversation-v1")],
-  ["Estúdio de áudio continua integrado", page.includes("<AudioStudio") && audioStudio.includes('fetch("/api/tts"')],
+  ["Estúdio de áudio continua integrado com geração em blocos Gemini", page.includes("<AudioStudio") && audioStudio.includes("generateLongSpeech") && ttsClient.includes("splitSpeechText")],
   ["Estúdio de vídeo continua integrado", page.includes("<VideoStudio")],
   ["Estúdio de vídeo mantém salvamento automático local", videoStudio.includes("atlas.video-studio.script.v1") && videoStudio.includes("localStorage.setItem")],
   ["Estúdio de vídeo mantém renderização Mediabunny", videoStudio.includes('import("mediabunny")') && videoStudio.includes("addVideoTrack")],
@@ -52,7 +53,10 @@ const checks = [
   ["endpoint de chat mantém validação do histórico", chat.includes("MAX_HISTORY_MESSAGES") && chat.includes("MAX_MESSAGE_CHARS")],
   ["TTS mantém modelo e voz configuráveis", tts.includes("GEMINI_TTS_MODEL") && tts.includes("GEMINI_TTS_VOICE")],
   ["TTS mantém orientação vocal aprovada", tts.includes("voz grave, encorpada, firme e acolhedora") && tts.includes('|| "Orus"')],
-  ["TTS mantém fallback Piper", tts.includes("piperFallback") && tts.includes("PIPER_TTS_URL") && tts.includes("PIPER_API_TOKEN")],
+  ["TTS usa Gemini como provedor neural exclusivo", tts.includes("GEMINI_TTS_MODEL") && !tts.includes("piperFallback") && !tts.includes("PIPER_TTS_URL")],
+  ["TTS divide textos por parágrafos e frases", ttsClient.includes("splitSpeechText") && ttsClient.includes("TARGET_CHARS") && ttsClient.includes("paragraphs")],
+  ["TTS gera blocos sequencialmente e preserva falhas", ttsClient.includes("for (let index = job.audio.length") && ttsClient.includes("job.audio.push(bytes)")],
+  ["TTS une os blocos em WAV com pausas e cabeçalho RIFF válido", ttsClient.includes("mergeWavChunks") && ttsClient.includes("silenceLength") && ttsClient.includes("RIFF")],
   ["limpeza do texto falado continua isolada", tts.includes("cleanTextForSpeech") && speech.includes("export function cleanTextForSpeech")],
   ["health check continua sem expor segredos", health.includes("aiConfigured") && health.includes("voiceConfigured") && !health.includes("GEMINI_API_KEY:")],
   ["área administrativa exige sessão e papel admin no servidor", adminPage.includes("auth.getSession()") && adminPage.includes('user.role !== "admin"') && adminPage.includes('redirect("/auth/sign-in")')],
