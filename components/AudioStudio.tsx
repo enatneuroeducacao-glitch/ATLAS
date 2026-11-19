@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AudioLines, Download, Mic2, RefreshCw, Volume2 } from "lucide-react";
+import { generateLongSpeech, splitSpeechText } from "@/lib/tts-client";
 
 const MAX_CHARS = 30000;
 
@@ -11,6 +12,7 @@ export default function AudioStudio() {
   const [audioUrl, setAudioUrl] = useState("");
   const [error, setError] = useState("");
   const [createdAt, setCreatedAt] = useState("");
+  const [progress, setProgress] = useState({ completed: 0, total: 0, percent: 0, current: 1 });
 
   useEffect(() => () => { if (audioUrl) URL.revokeObjectURL(audioUrl); }, [audioUrl]);
 
@@ -23,24 +25,9 @@ export default function AudioStudio() {
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl("");
     try {
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: value }),
-        signal: AbortSignal.timeout(180000)
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Não foi possível gerar o áudio. Tente novamente.");
-      }
-      const blob = await response.blob();
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      const isWav = bytes.length >= 44 &&
-        bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
-        bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45;
-      if (!blob.type.toLowerCase().includes("wav") || !isWav) {
-        throw new Error("O serviço não retornou um WAV válido. Nenhum outro formato será aceito.");
-      }
+      const chunks = splitSpeechText(value);
+      setProgress({ completed: 0, total: chunks.length, percent: 0, current: 1 });
+      const bytes = await generateLongSpeech(value, setProgress);
       setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: "audio/wav" })));
       setCreatedAt(new Date().toLocaleString("pt-BR"));
     } catch (err) {
@@ -61,8 +48,9 @@ export default function AudioStudio() {
         <textarea id="studio-script" value={script} onChange={e => setScript(e.target.value.slice(0, MAX_CHARS))} placeholder="Cole ou escreva o texto que deseja transformar em áudio..." maxLength={MAX_CHARS}/>
         <div className="studioMeta"><span>Português brasileiro · Motor neural de voz do ATLAS</span><span>{script.length.toLocaleString("pt-BR")} / {MAX_CHARS.toLocaleString("pt-BR")} caracteres</span></div>
         <button type="button" className="studioGenerate" onClick={generate} disabled={!script.trim() || busy}>
-          {busy ? <><RefreshCw size={16} className="studioSpin"/> Gerando narração...</> : <><Mic2 size={16}/> Gerar áudio</>}
+          {busy ? <><RefreshCw size={16} className="studioSpin"/> Gerando bloco {progress.current} de {progress.total || "..." }...</> : <><Mic2 size={16}/> {progress.completed > 0 && progress.completed < progress.total ? "Continuar geração" : "Gerar áudio"}</>}
         </button>
+        {busy && <div className="videoRenderProgress" role="status"><div><b>Geração sequencial Gemini</b><strong>{progress.percent}%</strong></div><progress value={progress.percent} max={100}/><small>Bloco {Math.min(progress.completed + 1, progress.total)} de {progress.total} · {progress.completed} concluídos</small></div>}
         {error && <p className="studioError" role="alert">{error}</p>}
       </div>
       <div className="studioOutput">
