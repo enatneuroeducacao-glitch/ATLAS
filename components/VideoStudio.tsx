@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Download, RefreshCw, Radio, Waves, CircleDot, BarChart3, Eye, Zap, Play } from "lucide-react";
+import { generateLongSpeech, splitSpeechText } from "@/lib/tts-client";
 
 type VisualStyle = "wave" | "equalizer" | "radial";
 type ProductionMode = "download" | "preview";
@@ -18,6 +19,7 @@ export default function VideoStudio(){
  const [busy,setBusy]=useState(false);
  const [rendering,setRendering]=useState(false);
  const [progress,setProgress]=useState(0);
+ const [narrationProgress,setNarrationProgress]=useState({completed:0,total:0,percent:0,current:1});
  const [error,setError]=useState("");
  const [status,setStatus]=useState("");
  const [style,setStyle]=useState<VisualStyle>("wave");
@@ -69,20 +71,17 @@ export default function VideoStudio(){
  }
  async function generateAudio():Promise<string|null>{
   if(!script.trim()||busy||rendering)return null;
-  setBusy(true);setError("");setStatus("Gerando narração com a voz do ATLAS...");
+  setBusy(true);setError("");setStatus("Preparando blocos da narração Gemini...");
   try{
-   const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:script.trim()}),signal:AbortSignal.timeout(180000)});
-   if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Não foi possível gerar a narração.");}
-   const blob=await r.blob();
-   const wavBytes=new Uint8Array(await blob.arrayBuffer());
-   const isWav=wavBytes.length>=44&&wavBytes[0]===0x52&&wavBytes[1]===0x49&&wavBytes[2]===0x46&&wavBytes[3]===0x46&&wavBytes[8]===0x57&&wavBytes[9]===0x41&&wavBytes[10]===0x56&&wavBytes[11]===0x45;
-   if(!blob.type.toLowerCase().includes("wav")||!isWav)throw new Error("O serviço não retornou um WAV válido. Nenhum outro formato será aceito.");
+   const chunks=splitSpeechText(script.trim());
+   setNarrationProgress({completed:0,total:chunks.length,percent:0,current:1});
+   const wavBytes=await generateLongSpeech(script.trim(),setNarrationProgress);
    const url=URL.createObjectURL(new Blob([wavBytes],{type:"audio/wav"}));
    const probe=new Audio(url);
    const seconds=await new Promise<number>((resolve,reject)=>{probe.onloadedmetadata=()=>resolve(probe.duration);probe.onerror=()=>reject(new Error("Não foi possível ler a duração do áudio."));});
    if(audioUrlRef.current)URL.revokeObjectURL(audioUrlRef.current);
    audioUrlRef.current=url;setAudioUrl(url);setDuration(seconds);clearVideo();
-   setStatus("Narração pronta · "+formatTime(seconds)+". Escolha o modo de produção.");
+   setStatus("Narração concluída · "+chunks.length+" blocos unidos em WAV · "+formatTime(seconds)+". Escolha o modo de produção.");
    return url;
   }catch(e){setError(e instanceof Error?e.message:"Falha ao gerar áudio.");setStatus("");return null;}
   finally{setBusy(false);}
@@ -269,7 +268,8 @@ export default function VideoStudio(){
    <div className="videoEditor">
     <div className="videoSectionTitle"><b>1. Texto para narração</b><small>{script.length.toLocaleString("pt-BR")} / {MAX_SCRIPT}</small></div>
     <textarea className="videoNarration" rows={10} maxLength={MAX_SCRIPT} value={script} onChange={e=>updateScript(e.target.value)} disabled={!scriptRestored} placeholder="Escreva ou cole o texto que o ATLAS deverá narrar..."/>\n    <div className="videoScriptSaveStatus" role="status"><span className="videoScriptSaveDot"/> {scriptSaveStatus}</div>
-    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={()=>void generateAudio()}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando narração...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração</>}</button>
+    <button className="videoPrimary" type="button" disabled={!script.trim()||busy||rendering} onClick={()=>void generateAudio()}>{busy?<><RefreshCw size={15} className="studioSpin"/> Gerando bloco {narrationProgress.current} de {narrationProgress.total||"..." }...</>:rendering?<><RefreshCw size={15} className="studioSpin"/> Renderizando vídeo...</>:<><Radio size={15}/> Gerar narração</>}</button>
+    {busy&&<div className="videoRenderProgress" role="status"><div><b>Geração sequencial Gemini</b><strong>{narrationProgress.percent}%</strong></div><progress value={narrationProgress.percent} max={100}/><small>Bloco {Math.min(narrationProgress.completed+1,narrationProgress.total)} de {narrationProgress.total} · {narrationProgress.completed} concluídos</small></div>}
     {audioUrl&&<div className="audioReady"><div className="videoSectionTitle"><b>2. Narração pronta</b><small>{formatTime(duration)}</small></div><audio className="videoAudioPreview" controls src={audioUrl}/><a className="studioDownload" href={audioUrl} download={"atlas-narracao-"+Date.now()+".wav"}><Download size={16}/> Baixar narração WAV</a></div>}
     <div className="videoProductionModes">
      <div className="videoSectionTitle"><b>2. Modo de produção</b><small>Escolha como deseja concluir</small></div>
