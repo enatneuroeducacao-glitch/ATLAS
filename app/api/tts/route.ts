@@ -11,8 +11,8 @@ const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 const MAX_TTS_CHARS = 30_000;
 const CACHE_TTL = 10 * 60_000;
-const PRIMARY_MODEL = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
-const FALLBACK_MODEL = process.env.GEMINI_TTS_FALLBACK_MODEL || "gemini-3.8-flash-tts";
+const PRIMARY_MODEL = "gemini-3.8-flash-tts";
+const FALLBACK_MODEL = "";
 
 function isWav(bytes: Uint8Array): boolean {
   return bytes.length >= 44 &&
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
     if (cached) cache.delete(key);
 
     // Gemini is the only speech provider. Kokoro and Piper are intentionally not called.
-    const models = [...new Set([PRIMARY_MODEL, FALLBACK_MODEL])];
+    const models = [...new Set([PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean))];
     let audio: Uint8Array | null = null;
     let rateLimited = false;
 
