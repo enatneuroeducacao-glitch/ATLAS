@@ -6,7 +6,7 @@ import { cleanTextForSpeech } from "@/lib/speech-text";
 export const runtime = "nodejs";
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
-const cache = new Map<string, { audio: Uint8Array; createdAt: number }>();
+const cache = new Map<string, { audio: Uint8Array; createdAt: number; provider: string }>();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 const MAX_TTS_CHARS = 30_000;
@@ -66,7 +66,7 @@ class GeminiRateLimitError extends Error {
 
 function parseRetryDelay(value: unknown): number | null {
   if (typeof value !== "string") return null;
-  const match = value.match(/^(\\d+(?:\\.\\d+)?)(ms|s|m|h)$/i);
+  const match = value.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
   if (!match) return null;
   const amount = Number(match[1]);
   const unit = match[2].toLowerCase();
@@ -128,7 +128,7 @@ async function requestGeminiSpeech(apiKey: string, text: string, model: string):
 
   if (!response.ok) {
     const rawError = await response.text().catch(() => "");
-    const detail = rawError.replace(/[\\r\\n\\t]+/g, " ").slice(0, 400);
+    const detail = rawError.replace(/[\r\n\t]+/g, " ").slice(0, 400);
     console.error("ATLAS Gemini TTS provider error:", model, response.status, detail);
     if (response.status === 429) throw new GeminiRateLimitError(getQuotaCooldown(response, rawError));
     return null;
@@ -150,7 +150,7 @@ async function requestGeminiSpeech(apiKey: string, text: string, model: string):
 }
 
 async function requestPiperSpeech(text: string): Promise<Uint8Array | null> {
-  const baseUrl = process.env.PIPER_TTS_URL?.trim().replace(/\\/+$/, "");
+  const baseUrl = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
   const token = process.env.PIPER_API_TOKEN?.trim();
   if (!baseUrl || !token) return null;
 
@@ -165,7 +165,7 @@ async function requestPiperSpeech(text: string): Promise<Uint8Array | null> {
   });
 
   if (!response.ok) {
-    const detail = (await response.text().catch(() => "")).replace(/[\\r\\n\\t]+/g, " ").slice(0, 300);
+    const detail = (await response.text().catch(() => "")).replace(/[\r\n\t]+/g, " ").slice(0, 300);
     console.error("ATLAS Piper TTS provider error:", response.status, detail);
     return null;
   }
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
         headers: {
           "Content-Type": "audio/wav",
           "Cache-Control": "private, max-age=600",
-          "X-ATLAS-Voice": "gemini-neural-cache"
+          "X-ATLAS-Voice": cached.provider + "-cache"
         }
       });
     }
@@ -298,7 +298,7 @@ export async function POST(request: Request) {
       }, { status: 503 });
     }
 
-    cache.set(key, { audio, createdAt: Date.now() });
+    cache.set(key, { audio, createdAt: Date.now(), provider });
     if (cache.size > 40) {
       const oldest = cache.keys().next().value;
       if (oldest) cache.delete(oldest);
