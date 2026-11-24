@@ -6,12 +6,12 @@ import { cleanTextForSpeech } from "@/lib/speech-text";
 export const runtime = "nodejs";
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
-const cache = new Map<string, { audio: Uint8Array; createdAt: number }>();
+const cache = new Map<string, { audio: Uint8Array; createdAt: number; provider: string }>();
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 const MAX_TTS_CHARS = 30_000;
 const CACHE_TTL = 10 * 60_000;
-const PRIMARY_MODEL = "gemini-3.8-flash-tts";
+const PRIMARY_MODEL = process.env.GEMINI_TTS_MODEL?.trim() || "gemini-3.8-flash-tts";
 const FALLBACK_MODEL = "gemini-3.8-flash-lite-tts";
 const modelCooldowns = new Map<string, number>();
 
@@ -66,7 +66,7 @@ class GeminiRateLimitError extends Error {
 
 function parseRetryDelay(value: unknown): number | null {
   if (typeof value !== "string") return null;
-  const match = value.match(/^(\\d+(?:\\.\\d+)?)(ms|s|m|h)$/i);
+  const match = value.match(/^(\d+(?:\.\d+)?)(ms|s|m|h)$/i);
   if (!match) return null;
   const amount = Number(match[1]);
   const unit = match[2].toLowerCase();
@@ -128,7 +128,7 @@ async function requestGeminiSpeech(apiKey: string, text: string, model: string):
 
   if (!response.ok) {
     const rawError = await response.text().catch(() => "");
-    const detail = rawError.replace(/[\\r\\n\\t]+/g, " ").slice(0, 400);
+    const detail = rawError.replace(/[\r\n\t]+/g, " ").slice(0, 400);
     console.error("ATLAS Gemini TTS provider error:", model, response.status, detail);
     if (response.status === 429) throw new GeminiRateLimitError(getQuotaCooldown(response, rawError));
     return null;
@@ -144,6 +144,41 @@ async function requestGeminiSpeech(apiKey: string, text: string, model: string):
   const bytes = new Uint8Array(audio);
   if (!isWav(bytes)) {
     console.error("ATLAS Gemini TTS returned an invalid WAV payload:", model);
+    return null;
+  }
+  return bytes;
+}
+
+async function requestPiperSpeech(text: string): Promise<Uint8Array | null> {
+  const baseUrl = process.env.PIPER_TTS_URL?.trim().replace(/\/+$/, "");
+  const token = process.env.PIPER_API_TOKEN?.trim();
+  if (!baseUrl || !token) return null;
+
+  const response = await fetch(`${baseUrl}/v1/audio/speech`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ text }),
+    signal: AbortSignal.timeout(100_000)
+  });
+
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => "")).replace(/[\r\n\t]+/g, " ").slice(0, 300);
+    console.error("ATLAS Piper TTS provider error:", response.status, detail);
+    return null;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("audio/")) {
+    console.error("ATLAS Piper TTS returned unexpected content type:", contentType || "missing");
+    return null;
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!isWav(bytes)) {
+    console.error("ATLAS Piper TTS returned an invalid WAV payload");
     return null;
   }
   return bytes;
@@ -183,9 +218,10 @@ export async function POST(request: Request) {
     }
 
     const apiKey = process.env.GEMINI_API_KEY?.trim();
-    if (!apiKey) {
-      console.error("ATLAS Gemini TTS is not configured: GEMINI_API_KEY is missing");
-      return NextResponse.json({ error: "A chave do Gemini não está configurada no servidor do ATLAS." }, { status: 503 });
+    const piperConfigured = Boolean(process.env.PIPER_TTS_URL?.trim() && process.env.PIPER_API_TOKEN?.trim());
+    if (!apiKey && !piperConfigured) {
+      console.error("ATLAS TTS is not configured: neither Gemini nor Piper credentials are available");
+      return NextResponse.json({ error: "Nenhum mecanismo de voz está configurado no servidor do ATLAS." }, { status: 503 });
     }
 
     const key = createHash("sha256").update(speechText).digest("hex");
@@ -195,14 +231,15 @@ export async function POST(request: Request) {
         headers: {
           "Content-Type": "audio/wav",
           "Cache-Control": "private, max-age=600",
-          "X-ATLAS-Voice": "gemini-neural-cache"
+          "X-ATLAS-Voice": cached.provider + "-cache"
         }
       });
     }
     if (cached) cache.delete(key);
 
-    // Gemini is the only speech provider. Kokoro and Piper are intentionally not called.
-    const models = [...new Set([PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean))];
+    // Gemini is preferred when available. Piper is the self-hosted fallback,
+    // including when Gemini is unconfigured, rate-limited, or temporarily unavailable.
+    const models = apiKey ? [...new Set([PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean))] : [];
     let audio: Uint8Array | null = null;
     const now = Date.now();
     const blockedUntil: number[] = [];
@@ -218,7 +255,7 @@ export async function POST(request: Request) {
 
     for (const model of availableModels) {
       try {
-        audio = await requestGeminiSpeech(apiKey, speechText, model);
+        audio = await requestGeminiSpeech(apiKey!, speechText, model);
         if (audio) {
           modelCooldowns.delete(model);
           break;
@@ -235,7 +272,17 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!audio && blockedUntil.length) {
+    let provider = "gemini-neural";
+    if (!audio && piperConfigured) {
+      try {
+        audio = await requestPiperSpeech(speechText);
+        if (audio) provider = "piper-self-hosted";
+      } catch (error) {
+        console.error("ATLAS Piper TTS request failed:", error instanceof Error ? error.name : "unknown");
+      }
+    }
+
+    if (!audio && blockedUntil.length && !piperConfigured) {
       const retryAt = Math.min(...blockedUntil);
       const retryInSeconds = Math.max(1, Math.ceil((retryAt - Date.now()) / 1000));
       return NextResponse.json({
@@ -247,11 +294,11 @@ export async function POST(request: Request) {
 
     if (!audio) {
       return NextResponse.json({
-        error: "O serviço de voz neural Gemini está temporariamente indisponível. O texto foi preservado; tente gerar o áudio novamente."
+        error: "Os mecanismos de voz estão temporariamente indisponíveis. O texto foi preservado; tente gerar o áudio novamente."
       }, { status: 503 });
     }
 
-    cache.set(key, { audio, createdAt: Date.now() });
+    cache.set(key, { audio, createdAt: Date.now(), provider });
     if (cache.size > 40) {
       const oldest = cache.keys().next().value;
       if (oldest) cache.delete(oldest);
@@ -261,7 +308,7 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": "audio/wav",
         "Cache-Control": "private, max-age=600",
-        "X-ATLAS-Voice": "gemini-neural"
+        "X-ATLAS-Voice": provider
       }
     });
   } catch (error) {
