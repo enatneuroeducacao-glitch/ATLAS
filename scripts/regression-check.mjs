@@ -53,7 +53,7 @@ const checks = [
   ["endpoint de chat mantém validação do histórico", chat.includes("MAX_HISTORY_MESSAGES") && chat.includes("MAX_MESSAGE_CHARS")],
   ["TTS mantém seleção inteligente dos modelos Gemini e voz configurável", tts.includes("PRIMARY_MODEL") && tts.includes("FALLBACK_MODEL") && tts.includes("GEMINI_TTS_VOICE") && tts.includes("modelCooldowns")],
   ["TTS mantém orientação vocal aprovada", tts.includes("voz grave, encorpada, firme e acolhedora") && tts.includes('|| "Orus"')],
-  ["TTS usa Gemini como provedor neural exclusivo com failover por cota", tts.includes("GeminiRateLimitError") && tts.includes("getQuotaCooldown") && tts.includes("availableModels") && tts.includes("retryAfterSeconds") && !tts.includes("piperFallback") && !tts.includes("PIPER_TTS_URL")],
+  ["TTS prioriza Gemini, mantém failover por cota e usa Piper autenticado como fallback", tts.includes("GeminiRateLimitError") && tts.includes("getQuotaCooldown") && tts.includes("availableModels") && tts.includes("retryAfterSeconds") && tts.includes("requestPiperSpeech") && tts.includes("PIPER_TTS_URL") && tts.includes("PIPER_API_TOKEN") && tts.includes("Authorization: `Bearer ${token}`") && tts.includes("if (!audio && piperConfigured)")],
   ["TTS divide textos por parágrafos e frases", ttsClient.includes("splitSpeechText") && ttsClient.includes("TARGET_CHARS") && ttsClient.includes("paragraphs")],
   ["TTS gera blocos sequencialmente e preserva falhas", ttsClient.includes("for (let index = job.audio.length") && ttsClient.includes("job.audio.push(bytes)")],
   ["TTS une os blocos em WAV com pausas e cabeçalho RIFF válido", ttsClient.includes("mergeWavChunks") && ttsClient.includes("silenceLength") && ttsClient.includes("RIFF")],
