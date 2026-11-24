@@ -1,0 +1,32 @@
+name: ATLAS branch validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: ["feat/local-knowledge-rag"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Audit dependencies (known upstream advisory may remain)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+      - name: Lint
+        run: npm run lint
